@@ -1,27 +1,24 @@
-const express = require("express")
-const cors = require("cors")
-const dotenv = require("dotenv")
-const authRoutes = require("./modules/auth/auth.routes.js");
-const userRoutes = require("./modules/users/user.routes.js");
-const roleRoutes =require("./modules/roles/role.routes.js");
-dotenv.config()
+const express = require('express');
+const cors = require('cors');
+const dotenv = require('dotenv');
 
-const app = express()
+dotenv.config();
 
-app.use(cors())
-app.use(express.json(express.urlencoded({ extended: true })))
+const authRoutes = require('./modules/auth/auth.routes');
 
-app.use("/api/auth",authRoutes)
-app.use("/api/users",userRoutes)
-app.use("/api/roles",roleRoutes)
+const app = express();
 
+app.use(cors({ origin: true, credentials: true }));
+app.use(express.json());
 
-app.get("/", (req, res) => {
-  res.send("Hello, Eterna Platform!")
-})
+app.get('/', (_req, res) => res.send('Hello, Eterna Platform!'));
 
+app.use('/api/auth', authRoutes);
+
+// TODO: add user and role routes when ready
+// const userRoutes = require('./modules/users/user.routes');
+// const roleRoutes = require('./modules/roles/role.routes');
+// app.use('/api/users', userRoutes);
+// app.use('/api/roles', roleRoutes);
 
 module.exports = app;
-
-
-

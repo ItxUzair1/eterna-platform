@@ -1,9 +1,6 @@
-const path = require('path');
-// Load environment variables from server/.env so runtime scripts (seed, migrations)
-// using Prisma can find DATABASE_URL when run with `node` (not via prisma CLI).
-require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
-
 const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
-
-module.exports = { prisma };
+const prisma = new PrismaClient({
+  log: process.env.NODE_ENV === 'development' ? ['query', 'info', 'warn', 'error'] : ['error'],
+});
+process.on('beforeExit', async () => prisma.$disconnect());
+module.exports = prisma;

@@ -2,15 +2,19 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import Dashboard from "./pages/Dashboard";
+import DashboardLayout from "./layouts/DashboardLayout";
 
 function App() {
   return (
     <Router>
       <Routes>
+        {/* Auth Routes */}
         <Route path="/" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/dashboard" element={<Dashboard />} />
+
+        {/* Dashboard Layout */}
+        <Route path="/dashboard" element={<DashboardLayout />}>
+        </Route>
       </Routes>
     </Router>
   );

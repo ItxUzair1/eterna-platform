@@ -1,28 +1,30 @@
-const jwt =require("jsonwebtoken");
+const jwt = require('jsonwebtoken');
+const prisma = require('../config/db');
 
 const verifyToken = (req, res, next) => {
-  const header = req.headers.authorization;
-  if (!header) return res.status(401).json({ error: "Missing token" });
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  if (!token) return res.status(401).json({ error: 'Missing token' });
 
-  const token = header.split(" ")[1];
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
+    req.user = decoded; // { id, tenantId, roleId }
     next();
   } catch {
-    res.status(401).json({ error: "Invalid token" });
+    res.status(401).json({ error: 'Invalid token' });
   }
 };
 
 const permit = (...roles) => {
   return async (req, res, next) => {
-    const roleId = req.user.roleId;
+    const roleId = req.user?.roleId;
+    if (!roleId) return res.status(403).json({ error: 'Access denied' });
     const role = await prisma.role.findUnique({ where: { id: roleId } });
-    if (!roles.includes(role.name)) {
-      return res.status(403).json({ error: "Access denied" });
+    if (!role || !roles.includes(role.name)) {
+      return res.status(403).json({ error: 'Access denied' });
     }
     next();
   };
 };
 
-module.exports={verifyToken,permit}
+module.exports = { verifyToken, permit };

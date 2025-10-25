@@ -1,5 +1,5 @@
 // src/pages/Dashboard.jsx
-import DashboardLayout from "../components/DashboardLayout";
+import DashboardLayout from "../layouts/DashboardLayout";
 
 const Dashboard = () => {
   return (
