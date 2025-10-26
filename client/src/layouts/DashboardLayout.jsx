@@ -1,25 +1,35 @@
 // src/layouts/DashboardLayout.jsx
-import Sidebar from "../components/SideBar";
-import Navbar from "../components/NavBar";
+import Sidebar from "../components/Sidebar";
+import NavBar from "../components/NavBar";
 import { Outlet } from "react-router-dom";
+import { useState, useCallback, useMemo } from "react";
 
 export default function DashboardLayout() {
+  const [collapsed, setCollapsed] = useState(false);  // desktop collapse
+  const [mobileOpen, setMobileOpen] = useState(false); // mobile drawer
+
+  const toggleCollapse = useCallback(() => setCollapsed((c) => !c), []);
+  const toggleMobile = useCallback(() => setMobileOpen((o) => !o), []);
+  const closeMobile = useCallback(() => setMobileOpen(false), []);
+
+  const sidebarWidthClass = useMemo(
+    () => (collapsed ? "sm:pl-20" : "sm:pl-64"),
+    [collapsed]
+  );
+
   return (
-    <div className="flex h-screen bg-gray-100 overflow-hidden">
-      {/* Sidebar */}
-      <div className="fixed left-0 top-0 h-full z-20">
-        <Sidebar />
-      </div>
+    <div className="h-screen bg-gray-100">
+      <Sidebar
+        isOpen={mobileOpen}
+        collapsed={collapsed}
+        onToggleCollapse={toggleCollapse}
+        onCloseMobile={closeMobile}
+      />
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col ml-64">
-        {/* Navbar */}
-        <div className="fixed top-0 left-64 right-0 z-10">
-          <Navbar />
-        </div>
+      <div className={`flex flex-col min-h-screen ${sidebarWidthClass} transition-[padding] duration-300`}>
+        <NavBar onToggleSidebar={toggleMobile} />
 
-        {/* Main body content */}
-        <main className="flex-1 mt-16 p-6 overflow-y-auto bg-gray-50">
+        <main className="flex-1 p-4 sm:p-6 overflow-y-auto bg-gray-50">
           <Outlet />
         </main>
       </div>

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { signin } from "../api/authService"; // adjust path if needed
+import { signin } from "../services/authService"; // adjust path if needed
 
 const Login = () => {
   const [form, setForm] = useState({ identifier: "", password: "" });
