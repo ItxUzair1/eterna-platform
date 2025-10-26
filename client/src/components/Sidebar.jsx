@@ -71,6 +71,17 @@ export default function Sidebar() {
                        <Mail className="w-5 h-5" />
                          {!collapsed && <span>Email</span>}
             </NavLink>
+          <NavLink
+                   to="/dashboard/kanban"
+                     className={({ isActive }) =>
+                        `flex items-center gap-3 px-4 py-2 rounded-md transition-all duration-200 hover:bg-gray-800 ${
+                        isActive ? 'bg-gray-800 text-indigo-400 font-semibold' : 'text-gray-300'
+                  }`
+           }>
+          {/* you can use a board icon from lucide-react, e.g., Layout */}
+                 <span className="w-5 h-5">🗂️</span>
+              {!collapsed && <span>Kanban</span>}
+          </NavLink>
         </nav>
       </div>
 

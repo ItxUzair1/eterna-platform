@@ -4,6 +4,8 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import DashboardLayout from "./layouts/DashboardLayout";
 import Email from './pages/Email';
+import Kanban from './pages/Kanban';
+
 
 function App() {
   return (
@@ -16,6 +18,7 @@ function App() {
         {/* Dashboard Layout */}
         <Route path="/dashboard" element={<DashboardLayout />}>
         <Route path="/dashboard/email" element={<Email />} />
+        <Route path="/dashboard/kanban" element={<Kanban />} />
         </Route>
       </Routes>
     </Router>
