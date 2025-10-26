@@ -10,7 +10,6 @@ const signup = async (data) => {
 
   const tenant = await prisma.tenant.create({ data: { name: `${username}'s Org` } });
 
-  // Ensure role exists or fallback
   let userRole = await prisma.role.findFirst({
     where: { tenantId: tenant.id, name: role },
   });
@@ -37,7 +36,8 @@ const signup = async (data) => {
 };
 
 const signin = async ({ identifier, password }) => {
-  // identifier can be email or username
+  console.log('Incoming login data:', identifier);
+
   const user =
     (await prisma.user.findUnique({ where: { email: identifier } })) ||
     (await prisma.user.findUnique({ where: { username: identifier } }));
@@ -53,8 +53,14 @@ const signin = async ({ identifier, password }) => {
     { expiresIn: '1d' }
   );
 
-  // Minimal safe payload back to client
-  const safeUser = { id: user.id, tenantId: user.tenantId, email: user.email, username: user.username, roleId: user.roleId };
+  const safeUser = {
+    id: user.id,
+    tenantId: user.tenantId,
+    email: user.email,
+    username: user.username,
+    roleId: user.roleId,
+  };
+  console.log(token)
 
   return { user: safeUser, token };
 };
