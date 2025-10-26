@@ -2,6 +2,8 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { ClipboardList, Image, Menu, LogOut } from "lucide-react";
+import { Mail } from 'lucide-react'; // add icon import
+
 
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
@@ -58,6 +60,17 @@ export default function Sidebar() {
             <Image className="w-5 h-5" />
             {!collapsed && <span>Image Converter</span>}
           </NavLink>
+
+          <NavLink
+             to="/dashboard/email"
+           className={({ isActive }) =>
+             `flex items-center gap-3 px-4 py-2 rounded-md transition-all duration-200 hover:bg-gray-800 ${
+              isActive ? 'bg-gray-800 text-indigo-400 font-semibold' : 'text-gray-300'
+                   }`
+                     }>
+                       <Mail className="w-5 h-5" />
+                         {!collapsed && <span>Email</span>}
+            </NavLink>
         </nav>
       </div>
 

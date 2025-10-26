@@ -1,10 +1,15 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const authRoutes = require('./modules/auth/auth.routes');
+const emailRoutes = require('./modules/email/email.routes');
+
+
+
 
 dotenv.config();
 
-const authRoutes = require('./modules/auth/auth.routes');
+
 
 const app = express();
 
@@ -14,6 +19,7 @@ app.use(express.json());
 app.get('/', (_req, res) => res.send('Hello, Eterna Platform!'));
 
 app.use('/api/auth', authRoutes);
+app.use('/api/email', emailRoutes);
 
 // TODO: add user and role routes when ready
 // const userRoutes = require('./modules/users/user.routes');
