@@ -7,14 +7,80 @@ import {
 } from '../services/kanbanService';
 
 import {
-  DndContext, closestCenter, PointerSensor, useSensor, useSensors
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  useDroppable,
+  useDraggable
 } from '@dnd-kit/core';
 import {
-  arrayMove, SortableContext, verticalListSortingStrategy
+  arrayMove,
+  SortableContext,
+  verticalListSortingStrategy
 } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 // ---------- Small utilities ----------
 const bySort = (a,b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0);
+const columnContainerId = (columnId) => `column-${columnId}`;
+
+// ---------- Sortable Card ----------
+function SortableCard({ card, onOpenCard }) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useDraggable({
+    id: `card-${card.id}`,
+    data: { type: 'card', cardId: card.id, fromColumnId: card.columnId }
+  });
+
+  const style = {
+    transform: CSS.Translate.toString(transform),
+    transition
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      onClick={()=> onOpenCard(card)}
+      className={`group relative cursor-grab select-none
+        rounded-xl border border-slate-200 bg-white/95 backdrop-blur
+        p-3 shadow-sm hover:shadow-md transition
+        ring-0 hover:ring-2 hover:ring-indigo-200
+        after:absolute after:inset-y-0 after:left-0 after:w-1.5 after:rounded-l-xl after:bg-indigo-400/70`}
+    >
+      {/* Title */}
+      <div className="font-semibold text-slate-800 leading-snug break-words">
+        {card.title}
+      </div>
+
+      {/* Meta row */}
+      <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
+        {card.deadlineDate && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+            ⏰ {new Date(card.deadlineDate).toLocaleDateString()}
+          </span>
+        )}
+        {/* You can add assignee chip here later if you want */}
+      </div>
+
+      {/* Subtle grab handle hint on hover */}
+      <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition text-slate-400">
+        ⋮⋮
+      </div>
+    </div>
+  );
+}
+// ---------- Column droppable shell ----------
+function SortableColumnShell({ columnId, children }) {
+  const { setNodeRef } = useDroppable({
+    id: columnContainerId(columnId),
+    data: { type: 'column-droppable', columnId }
+  });
+  return <div ref={setNodeRef}>{children}</div>;
+}
 
 // ---------- Column ----------
 function Column({
@@ -23,115 +89,120 @@ function Column({
   onAddCard,
   onEditColumn,
   onDeleteColumn,
-  onReorderCards,
   onOpenCard
 }) {
-  const sensors = useSensors(useSensor(PointerSensor));
-
   return (
-    <div className="w-80 min-w-[20rem] bg-gray-50 border border-gray-200 rounded-xl p-3 shadow-sm">
-      <div className="flex items-center justify-between mb-2">
+    <div
+      className="
+        w-[18rem] sm:w-80 min-w-[18rem]
+        rounded-2xl border border-slate-200 bg-white/90 backdrop-blur
+        shadow-md hover:shadow-lg transition-shadow
+      "
+    >
+      {/* Header - sticky inside column */}
+      <div className="sticky top-0 z-10 -mx-3 px-3 pt-3 pb-2 bg-white/90 backdrop-blur border-b border-slate-200 flex items-center justify-between">
         <input
-          className="font-semibold bg-transparent outline-none px-1 rounded hover:bg-white"
+          className="flex-1 font-semibold text-slate-800 bg-transparent outline-none px-1 rounded
+                     hover:bg-slate-50 focus:ring-2 focus:ring-indigo-300"
           defaultValue={column.title}
           onBlur={(e)=> onEditColumn(column.id, { title: e.target.value })}
         />
         <button
           onClick={()=> onDeleteColumn(column.id)}
-          className="text-red-600 hover:underline text-xs"
+          className="ml-2 inline-flex items-center text-xs px-2 py-1 rounded-md text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200"
           title="Delete column"
         >
           Delete
         </button>
       </div>
 
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={(e)=> onReorderCards(column.id, e)}
-      >
-        <SortableContext items={cards.map(c => c.id)} strategy={verticalListSortingStrategy}>
-          <div className="space-y-2">
-            {cards.map(card => (
-              <div
-                key={card.id}
-                id={card.id}
-                className="bg-white border border-gray-200 rounded-lg p-3 shadow hover:shadow-md cursor-grab"
-                onClick={()=> onOpenCard(card)}
-              >
-                <div className="font-medium text-gray-800">{card.title}</div>
-                {card.deadlineDate && (
-                  <div className="text-xs text-gray-500 mt-1">⏰ {new Date(card.deadlineDate).toLocaleDateString()}</div>
-                )}
-              </div>
-            ))}
-          </div>
-        </SortableContext>
-      </DndContext>
+      {/* Droppable container for cards */}
+      <SortableColumnShell columnId={column.id}>
+        <div className="p-3">
+          <SortableContext items={cards.map(c => `card-${c.id}`)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-2">
+              {cards.map(card => (
+                <SortableCard key={card.id} card={card} onOpenCard={onOpenCard} />
+              ))}
+            </div>
+          </SortableContext>
+        </div>
+      </SortableColumnShell>
 
-      <button
-        onClick={()=> onAddCard(column.id)}
-        className="mt-3 w-full bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 rounded-lg py-1.5 text-sm font-semibold"
-      >
-        + Add card
-      </button>
+      {/* Column footer action */}
+      <div className="px-3 pb-3">
+        <button
+          onClick={()=> onAddCard(column.id)}
+          className="w-full rounded-xl py-2 text-sm font-semibold
+                     text-indigo-700 bg-indigo-50 hover:bg-indigo-100
+                     border border-indigo-200 shadow-sm active:scale-[.99] transition"
+        >
+          + Add card
+        </button>
+      </div>
     </div>
   );
 }
-
-// ---------- Card Modal ----------
-function CardModal({
-  open,
-  onClose,
-  card,
-  setCardState,
-  onSave,
-  onDelete,
-  onAttach,
-  comments,
-  onAddComment
-}) {
+// ---------- Card Modal (scroll constrained) ----------
+function CardModal({ open, onClose, card, setCardState, onSave, onDelete, onAttach, comments, onAddComment }) {
   if (!open || !card) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
-      <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-gray-200">
-        <div className="flex items-center justify-between p-4 border-b">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
+      <div className="bg-white/95 backdrop-blur w-full max-w-2xl max-h-[90vh] rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="sticky top-0 z-10 bg-white/95 backdrop-blur p-4 border-b border-slate-200 shadow-sm flex items-center gap-3">
           <input
-            className="text-xl font-semibold w-full outline-none"
+            className="flex-1 text-xl font-semibold text-slate-800 bg-transparent outline-none
+                       px-2 py-1 rounded-md focus:ring-2 focus:ring-indigo-300"
             value={card.title || ''}
             onChange={(e)=> setCardState(prev => ({ ...prev, title: e.target.value }))}
+            placeholder="Card title"
           />
-          <button onClick={onClose} className="ml-3 text-gray-500 hover:text-gray-700">✖</button>
+          <button
+            onClick={onClose}
+            className="inline-flex items-center justify-center rounded-md px-2.5 py-1.5
+                       text-slate-600 hover:text-slate-800 hover:bg-slate-100 transition"
+            aria-label="Close"
+            title="Close"
+          >
+            ✖
+          </button>
         </div>
 
-        <div className="p-5 space-y-5">
+        {/* Content */}
+        <div className="p-5 space-y-5 overflow-y-auto">
+          {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
             <textarea
-              rows={5}
-              className="w-full border border-gray-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              rows={8}
+              className="w-full border border-slate-300 rounded-xl px-3 py-2 bg-white
+                         focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-y overflow-auto"
               value={card.description || ''}
               onChange={(e)=> setCardState(prev => ({ ...prev, description: e.target.value }))}
               placeholder="Add a detailed description..."
             />
           </div>
 
+          {/* Two-column inputs */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Deadline</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Deadline</label>
               <input
                 type="date"
-                className="w-full border border-gray-300 rounded-xl px-3 py-2"
+                className="w-full border border-slate-300 rounded-xl px-3 py-2 bg-white
+                           focus:outline-none focus:ring-2 focus:ring-indigo-300"
                 value={card.deadlineDate ? new Date(card.deadlineDate).toISOString().slice(0,10) : ''}
                 onChange={(e)=> setCardState(prev => ({ ...prev, deadlineDate: e.target.value ? new Date(e.target.value).toISOString() : null }))}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Assignee (userId)</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Assignee (userId)</label>
               <input
                 type="number"
-                className="w-full border border-gray-300 rounded-xl px-3 py-2"
+                className="w-full border border-slate-300 rounded-xl px-3 py-2 bg-white
+                           focus:outline-none focus:ring-2 focus:ring-indigo-300"
                 value={card.assigneeId || ''}
                 onChange={(e)=> setCardState(prev => ({ ...prev, assigneeId: e.target.value ? Number(e.target.value) : null }))}
                 placeholder="Enter user id"
@@ -141,39 +212,56 @@ function CardModal({
 
           {/* Attachments */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Attachments</label>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Attachments</label>
             <input
               type="file"
               onChange={(e)=> e.target.files?.[0] && onAttach(e.target.files[0])}
-              className="text-sm file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+              className="text-sm file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0
+                         file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
             />
             {card.attachments?.length > 0 && (
-              <div className="mt-2 text-sm text-gray-600">{card.attachments.length} file(s) linked</div>
+              <div className="mt-2 text-sm text-slate-600">
+                {card.attachments.length} file(s) linked
+              </div>
             )}
           </div>
 
           {/* Comments */}
           <div>
-            <div className="text-sm font-semibold text-gray-700 mb-2">Comments</div>
+            <div className="text-sm font-semibold text-slate-700 mb-2">Comments</div>
             <ul className="space-y-3">
               {comments.map(c => (
-                <li key={c.id} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
-                  <div className="text-sm text-gray-700 whitespace-pre-wrap">{c.body}</div>
-                  <div className="mt-1 text-xs text-gray-500">
+                <li key={c.id} className="border border-slate-200 rounded-lg p-3 bg-slate-50">
+                  <div className="text-sm text-slate-700 whitespace-pre-wrap">{c.body}</div>
+                  <div className="mt-1 text-xs text-slate-500">
                     by {c.author?.username || c.author?.email || 'User'} • {new Date(c.createdAt).toLocaleString()}
                   </div>
                 </li>
               ))}
-              {comments.length === 0 && <li className="text-sm text-gray-400">No comments yet.</li>}
+              {comments.length === 0 && (
+                <li className="text-sm text-slate-400">No comments yet.</li>
+              )}
             </ul>
 
             <AddComment onAdd={onAddComment} />
           </div>
+        </div>
 
-          <div className="flex items-center justify-between pt-2">
-            <button className="text-red-600 hover:text-red-700" onClick={onDelete}>Delete card</button>
-            <button className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2 rounded-xl" onClick={onSave}>Save changes</button>
-          </div>
+        {/* Footer */}
+        <div className="sticky bottom-0 z-10 bg-white/95 backdrop-blur p-4 border-t border-slate-200 shadow-sm flex items-center justify-between">
+          <button
+            className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 border border-rose-200
+                       rounded-lg px-3 py-2 text-sm font-semibold transition"
+            onClick={onDelete}
+          >
+            Delete card
+          </button>
+          <button
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2 rounded-xl shadow-sm"
+            onClick={onSave}
+          >
+            Save changes
+          </button>
         </div>
       </div>
     </div>
@@ -185,14 +273,15 @@ function AddComment({ onAdd }) {
   return (
     <div className="mt-3 flex gap-2">
       <input
-        className="flex-1 border border-gray-300 rounded-xl px-3 py-2 text-sm"
+        className="flex-1 border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white
+                   focus:outline-none focus:ring-2 focus:ring-indigo-300"
         placeholder="Write a comment..."
         value={text}
         onChange={(e)=> setText(e.target.value)}
       />
       <button
         onClick={()=> { if (text.trim()) { onAdd(text); setText(''); } }}
-        className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-3 py-2 rounded-xl text-sm"
+        className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-3 py-2 rounded-xl text-sm shadow-sm"
       >
         Add
       </button>
@@ -236,7 +325,6 @@ export default function Kanban() {
 
   // Create Board
   const handleCreateBoard = async () => {
-    console.log("clickable")
     const title = newBoardTitle.trim();
     if (!title) return;
     const { data } = await createBoard({ title });
@@ -279,60 +367,113 @@ export default function Kanban() {
     if (!active || !over || active.id === over.id) return;
 
     const ordered = [...columns];
-    const fromIndex = ordered.findIndex(c => c.id === active.id);
-    const toIndex = ordered.findIndex(c => c.id === over.id);
-    const newOrder = arrayMove(ordered, fromIndex, toIndex);
+    const fromIndex = ordered.findIndex(c => `col-${c.id}` === active.id || c.id === active.id);
+    const toIndex = ordered.findIndex(c => `col-${c.id}` === over.id || c.id === over.id);
+    if (fromIndex < 0 || toIndex < 0) return;
 
+    const newOrder = arrayMove(ordered, fromIndex, toIndex);
     setBoardData(prev => ({ ...prev, columns: newOrder }));
     await reorderColumns({ boardId: activeBoardId, orderedIds: newOrder.map(c => c.id) });
   };
 
-  // Cards
-  const handleAddCard = async (columnId) => {
-    const title = prompt('Card title?');
-    if (!title) return;
-    const { data } = await createCard({ boardId: activeBoardId, columnId, title });
-    setBoardData(prev => ({ ...prev, cards: [...prev.cards, data] }));
+  // Helpers for optimistic cross-column moves
+  const setCardsForColumns = (updater) => {
+    setBoardData(prev => {
+      const next = { ...prev, cards: [...prev.cards] };
+      next.cards = updater(next.cards);
+      return next;
+    });
   };
 
-  // Reorder cards in a column
-  const handleReorderCards = (columnId, e) => {
-    const { active, over } = e;
-    if (!active || !over || active.id === over.id) return;
+  // Cross-column drag-over feedback (optimistic)
+  const onCardDragOverBoard = (event) => {
+    const { active, over } = event;
+    if (!active || !over) return;
 
-    const current = (cardsByColumn[columnId] || []).slice();
-    const fromIndex = current.findIndex(c => c.id === active.id);
-    const toIndex = current.findIndex(c => c.id === over.id);
+    const a = active.data?.current;
+    const overData = over.data?.current;
+    if (!a || a.type !== 'card') return;
 
-    const newOrder = arrayMove(current, fromIndex, toIndex);
-    // optimistic UI
-    setBoardData(prev => ({
-      ...prev,
-      cards: [
-        ...prev.cards.filter(c => c.columnId !== columnId),
-        ...newOrder
-      ]
-    }));
+    let toColumnId = null;
 
-    reorderCards({ columnId, orderedIds: newOrder.map(c => c.id) });
-  };
-
-  // Cross-column move (quick helpers)
-  const moveLeft = async (card) => {
-    const idx = columns.findIndex(c => c.id === card.columnId);
-    if (idx > 0) {
-      await moveCard({ cardId: card.id, toColumnId: columns[idx - 1].id, toIndex: 0 });
-      const { data } = await getBoardFull(activeBoardId);
-      setBoardData(data);
+    if (overData?.type === 'column-droppable') {
+      toColumnId = overData.columnId;
+    } else {
+      const overCardId = String(over.id).startsWith('card-') ? Number(String(over.id).replace('card-', '')) : null;
+      if (overCardId) {
+        const overCard = (boardData?.cards || []).find(c => c.id === overCardId);
+        if (overCard) toColumnId = overCard.columnId;
+      }
     }
+
+    if (!toColumnId) return;
+    const fromColumnId = a.fromColumnId;
+    if (toColumnId === fromColumnId) return;
+
+    const cardId = a.cardId;
+    setCardsForColumns(cards => {
+      const card = cards.find(c => c.id === cardId);
+      if (!card) return cards;
+      if (card.columnId === toColumnId) return cards;
+      const without = cards.filter(c => c.id !== cardId);
+      return [...without, { ...card, columnId: toColumnId }];
+    });
   };
-  const moveRight = async (card) => {
-    const idx = columns.findIndex(c => c.id === card.columnId);
-    if (idx < columns.length - 1) {
-      await moveCard({ cardId: card.id, toColumnId: columns[idx + 1].id, toIndex: 0 });
-      const { data } = await getBoardFull(activeBoardId);
-      setBoardData(data);
+
+  // Cards: same-column reorder or cross-column move commit
+  const onCardDragEndBoard = async (event) => {
+    const { active, over } = event;
+    if (!active || !over) return;
+
+    const a = active.data?.current;
+    const overData = over.data?.current;
+    if (!a || a.type !== 'card') return;
+
+    const activeIdNum = a.cardId;
+    let dropColumnId = null;
+    let overCardIdNum = null;
+
+    if (overData?.type === 'column-droppable') {
+      dropColumnId = overData.columnId;
+    } else if (String(over.id).startsWith('card-')) {
+      overCardIdNum = Number(String(over.id).replace('card-', ''));
+      const overCard = (boardData?.cards || []).find(x => x.id === overCardIdNum);
+      dropColumnId = overCard?.columnId ?? a.fromColumnId;
     }
+
+    if (!dropColumnId) return;
+
+    if (dropColumnId === a.fromColumnId) {
+      // same-column reorder
+      const list = (boardData?.cards || []).filter(c => c.columnId === dropColumnId);
+      const ids = list.map(c => c.id);
+      const fromIndex = ids.indexOf(activeIdNum);
+      const toIndex = overCardIdNum ? ids.indexOf(overCardIdNum) : ids.length - 1;
+      if (fromIndex >= 0 && toIndex >= 0 && fromIndex !== toIndex) {
+        const newOrderIds = arrayMove(ids, fromIndex, toIndex);
+        const ordered = newOrderIds.map(id => list.find(c => c.id === id)).filter(Boolean);
+        setBoardData(prev => ({
+          ...prev,
+          cards: [
+            ...prev.cards.filter(c => c.columnId !== dropColumnId),
+            ...ordered
+          ]
+        }));
+        await reorderCards({ columnId: dropColumnId, orderedIds: newOrderIds });
+      }
+      return;
+    }
+
+    // cross-column move
+    const targetList = (boardData?.cards || []).filter(c => c.columnId === dropColumnId).sort(bySort);
+    let toIndex = targetList.length; // append by default
+    if (overCardIdNum) {
+      const i = targetList.findIndex(x => x.id === overCardIdNum);
+      if (i >= 0) toIndex = i;
+    }
+    await moveCard({ cardId: activeIdNum, toColumnId: dropColumnId, toIndex });
+    const { data } = await getBoardFull(activeBoardId);
+    setBoardData(data);
   };
 
   // Card Modal open/close
@@ -343,6 +484,15 @@ export default function Kanban() {
     setActiveCardComments(data);
   };
   const closeModal = () => { setModalOpen(false); setActiveCard(null); setActiveCardComments([]); };
+
+  // Cards: create a new card in a column
+const handleAddCard = async (columnId) => {
+  const title = prompt('Card title?');
+  if (!title) return;
+  const { data } = await createCard({ boardId: activeBoardId, columnId, title });
+  setBoardData(prev => ({ ...prev, cards: [...prev.cards, data] }));
+};
+
 
   // Save/Delete card
   const saveCard = async () => {
@@ -377,91 +527,108 @@ export default function Kanban() {
     setActiveCardComments(prev => [...prev, data]);
   };
 
-  return (
-    <div className="w-full h-[calc(100vh-56px)] bg-gray-50 flex">
-      <div className="flex-1 h-full overflow-hidden flex flex-col">
-        {/* Toolbar */}
-        <div className="border-b bg-white">
-          <div className="max-w-7xl mx-auto px-6 py-3 flex items-center gap-3">
-            <select
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
-              value={activeBoardId || ''}
-              onChange={(e)=> setActiveBoardId(Number(e.target.value))}
-            >
-              <option value="" disabled>Pick a board</option>
-              {boards.map(b => <option key={b.id} value={b.id}>{b.title}</option>)}
-            </select>
+  // Sensors for card DnD
+  const sensorsCards = useSensors(useSensor(PointerSensor));
+return (
+  <div className="w-full h-[calc(100vh-56px)] flex bg-gradient-to-b from-slate-50 to-slate-100">
+    <div className="flex-1 h-full overflow-hidden flex flex-col">
+      {/* Toolbar */}
+      <div className="border-b bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+        <div className="mx-auto max-w-[1800px] px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center gap-3">
+          <select
+            className="min-w-[200px] border border-slate-300 bg-white rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            value={activeBoardId || ''}
+            onChange={(e)=> setActiveBoardId(Number(e.target.value))}
+          >
+            <option value="" disabled>Pick a board</option>
+            {boards.map(b => <option key={b.id} value={b.id}>{b.title}</option>)}
+          </select>
 
+          <div className="flex items-center gap-2">
             <input
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              className="w-64 border border-slate-300 bg-white rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
               placeholder="New board title"
               value={newBoardTitle}
               onChange={(e)=> setNewBoardTitle(e.target.value)}
             />
             <button
               onClick={handleCreateBoard}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-sm font-semibold"
+              className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm active:scale-[.99] transition"
             >
-              ➕ Create Board
+              <span>➕</span> Create Board
             </button>
-
-            {activeBoardId && (
-              <button
-                onClick={handleAddColumn}
-                className="ml-auto bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 px-3 py-2 rounded-lg text-sm font-semibold"
-              >
-                ➕ Add Column
-              </button>
-            )}
           </div>
+
+          {activeBoardId && (
+            <button
+              onClick={handleAddColumn}
+              className="ml-auto inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 shadow-sm active:scale-[.99] transition"
+            >
+              <span>➕</span> Add Column
+            </button>
+          )}
         </div>
+      </div>
 
-        {/* Canvas */}
-        <div className="flex-1 overflow-auto">
-          <div className="max-w-[1600px] mx-auto px-6 py-5">
-            {!activeBoardId && (
-              <div className="text-gray-500">Select a board or create a new one.</div>
-            )}
+      {/* Canvas */}
+      <div className="flex-1 overflow-auto">
+        <div className="mx-auto max-w-[1800px] px-4 sm:px-6 lg:px-8 py-5">
+          {!activeBoardId && (
+            <div className="text-slate-600 bg-white/80 backdrop-blur border border-slate-200 rounded-xl p-4 shadow-sm">
+              Select a board or create a new one to get started.
+            </div>
+          )}
 
-            {activeBoardId && (
+          {activeBoardId && (
+            <>
+              {/* Columns DnD */}
               <DndContext
                 sensors={sensorsCols}
                 collisionDetection={closestCenter}
                 onDragEnd={onColumnsDragEnd}
               >
-                <div className="flex gap-4 items-start">
-                  <SortableContext items={columns.map(c => c.id)}>
-                    {columns.map(col => (
-                      <Column
-                        key={col.id}
-                        column={col}
-                        cards={(cardsByColumn[col.id] || [])}
-                        onAddCard={handleAddCard}
-                        onEditColumn={handleEditColumn}
-                        onDeleteColumn={handleDeleteColumn}
-                        onReorderCards={handleReorderCards}
-                        onOpenCard={openCard}
-                      />
-                    ))}
-                  </SortableContext>
-                </div>
+                <SortableContext items={columns.map(c => `col-${c.id}`)}>
+                  {/* Board-level DnD for cards (single context) */}
+                  <DndContext
+                    sensors={sensorsCards}
+                    collisionDetection={closestCenter}
+                    onDragOver={onCardDragOverBoard}
+                    onDragEnd={onCardDragEndBoard}
+                  >
+                    <div className="flex items-start gap-4 md:gap-5 lg:gap-6 overflow-x-auto pb-2 min-h-[70vh]">
+                      {columns.map(col => (
+                        <div key={col.id} id={`col-${col.id}`}>
+                          <Column
+                            column={col}
+                            cards={(cardsByColumn[col.id] || [])}
+                            onAddCard={handleAddCard}
+                            onEditColumn={handleEditColumn}
+                            onDeleteColumn={handleDeleteColumn}
+                            onOpenCard={openCard}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </DndContext>
+                </SortableContext>
               </DndContext>
-            )}
-          </div>
+            </>
+          )}
         </div>
       </div>
-
-      <CardModal
-        open={modalOpen}
-        onClose={closeModal}
-        card={activeCard}
-        setCardState={setActiveCard}
-        onSave={saveCard}
-        onDelete={deleteActiveCard}
-        onAttach={attachToActiveCard}
-        comments={activeCardComments}
-        onAddComment={addCommentToActiveCard}
-      />
     </div>
-  );
+
+    <CardModal
+      open={modalOpen}
+      onClose={closeModal}
+      card={activeCard}
+      setCardState={setActiveCard}
+      onSave={saveCard}
+      onDelete={deleteActiveCard}
+      onAttach={attachToActiveCard}
+      comments={activeCardComments}
+      onAddComment={addCommentToActiveCard}
+    />
+  </div>
+);
 }
