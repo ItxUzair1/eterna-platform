@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { sendEmail, getSentEmails, getEmailTemplates, saveEmailTemplate } from '../api/emailService';
+import { sendEmail, getSentEmails, getEmailTemplates, saveEmailTemplate } from '../services/emailService';
 import Button from '../components/Button';
 import InputField from '../components/InputField';
 

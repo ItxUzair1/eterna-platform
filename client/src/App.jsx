@@ -5,7 +5,7 @@ import Register from "./pages/Register";
 import DashboardLayout from "./layouts/DashboardLayout";
 import Email from './pages/Email';
 import Kanban from './pages/Kanban';
-
+import Todo from "./pages/Todo";
 
 function App() {
   return (
@@ -19,6 +19,7 @@ function App() {
         <Route path="/dashboard" element={<DashboardLayout />}>
         <Route path="/dashboard/email" element={<Email />} />
         <Route path="/dashboard/kanban" element={<Kanban />} />
+        <Route path="/dashboard/todo" element={<Todo />} />
         </Route>
       </Routes>
     </Router>

@@ -570,27 +570,27 @@ model TodoCategory {
 model Todo {
   id           Int       @id @default(autoincrement())
   tenantId     Int
+  userId       Int
   categoryId   Int?
   title        String
-  description  String?   @db.Text
+  description  String?
   status       String    @default("New")
   priority     String?   @default("Medium")
   assignedDate DateTime  @default(now())
   dueDate      DateTime?
-  notes        String?   @db.Text
-  createdBy    Int
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
   tenant   Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   category TodoCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  creator  User          @relation(fields: [createdBy], references: [id], onDelete: Cascade)
 
-  @@index([tenantId, createdBy])
+  @@index([tenantId, userId])
   @@index([categoryId])
   @@index([status])
   @@map("todos")
 }
+
 
 // =============================================================
 // ===============  IMAGE CONVERTER ============================

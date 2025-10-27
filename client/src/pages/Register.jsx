@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { signup } from "../api/authService"; // adjust path if needed
+import { signup } from "../services/authService"; // adjust path if needed
 
 const strengthLabel = (score) => {
   if (score >= 4) return { text: "Strong", color: "text-emerald-400", bar: "bg-emerald-500" };

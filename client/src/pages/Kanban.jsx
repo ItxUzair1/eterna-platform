@@ -4,7 +4,7 @@ import {
   createColumn, reorderColumns, updateColumn, deleteColumn,
   createCard, updateCard, deleteCard, moveCard, reorderCards,
   attachFile, addComment, listComments
-} from '../api/kanbanService';
+} from '../services/kanbanService';
 
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors
@@ -13,6 +13,7 @@ import {
   arrayMove, SortableContext, verticalListSortingStrategy
 } from '@dnd-kit/sortable';
 
+// ---------- Small utilities ----------
 const bySort = (a,b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0);
 
 // ---------- Column ----------
@@ -23,9 +24,7 @@ function Column({
   onEditColumn,
   onDeleteColumn,
   onReorderCards,
-  onOpenCard,
-  onMoveLeft,
-  onMoveRight
+  onOpenCard
 }) {
   const sensors = useSensors(useSensor(PointerSensor));
 
@@ -54,27 +53,16 @@ function Column({
         <SortableContext items={cards.map(c => c.id)} strategy={verticalListSortingStrategy}>
           <div className="space-y-2">
             {cards.map(card => (
-              <div key={card.id} id={card.id} className="bg-white border border-gray-200 rounded-lg p-3 shadow hover:shadow-md">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 cursor-pointer" onClick={()=> onOpenCard(card)}>
-                    <div className="font-medium text-gray-800">{card.title}</div>
-                    {card.deadlineDate && (
-                      <div className="text-xs text-gray-500 mt-1">⏰ {new Date(card.deadlineDate).toLocaleDateString()}</div>
-                    )}
-                  </div>
-                  <div className="shrink-0 flex items-center gap-1">
-                    <button
-                      className="px-2 py-1 rounded hover:bg-gray-100 text-gray-600"
-                      title="Move left"
-                      onClick={()=> onMoveLeft(card)}
-                    >←</button>
-                    <button
-                      className="px-2 py-1 rounded hover:bg-gray-100 text-gray-600"
-                      title="Move right"
-                      onClick={()=> onMoveRight(card)}
-                    >→</button>
-                  </div>
-                </div>
+              <div
+                key={card.id}
+                id={card.id}
+                className="bg-white border border-gray-200 rounded-lg p-3 shadow hover:shadow-md cursor-grab"
+                onClick={()=> onOpenCard(card)}
+              >
+                <div className="font-medium text-gray-800">{card.title}</div>
+                {card.deadlineDate && (
+                  <div className="text-xs text-gray-500 mt-1">⏰ {new Date(card.deadlineDate).toLocaleDateString()}</div>
+                )}
               </div>
             ))}
           </div>
@@ -101,9 +89,7 @@ function CardModal({
   onDelete,
   onAttach,
   comments,
-  onAddComment,
-  onMoveLeft,
-  onMoveRight
+  onAddComment
 }) {
   if (!open || !card) return null;
 
@@ -111,20 +97,8 @@ function CardModal({
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
       <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-gray-200">
         <div className="flex items-center justify-between p-4 border-b">
-          <div className="flex items-center gap-2">
-            <button
-              className="text-sm bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded"
-              onClick={()=> onMoveLeft(card)}
-              title="Move left"
-            >←</button>
-            <button
-              className="text-sm bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded"
-              onClick={()=> onMoveRight(card)}
-              title="Move right"
-            >→</button>
-          </div>
           <input
-            className="text-xl font-semibold w-full outline-none mx-3"
+            className="text-xl font-semibold w-full outline-none"
             value={card.title || ''}
             onChange={(e)=> setCardState(prev => ({ ...prev, title: e.target.value }))}
           />
@@ -233,17 +207,21 @@ export default function Kanban() {
   const [activeBoardId, setActiveBoardId] = useState(null);
   const [newBoardTitle, setNewBoardTitle] = useState('');
 
-  // Active board { columns[], cards[] }
+  // Active board payload: { columns[], cards[] }
   const [boardData, setBoardData] = useState(null);
 
-  // Modal
+  // Card modal
   const [modalOpen, setModalOpen] = useState(false);
   const [activeCard, setActiveCard] = useState(null);
   const [activeCardComments, setActiveCardComments] = useState([]);
 
-  // Load boards
+  // Load boards once
   useEffect(() => { listBoards().then(r => setBoards(r.data)); }, []);
-  useEffect(() => { if (activeBoardId) getBoardFull(activeBoardId).then(r => setBoardData(r.data)); }, [activeBoardId]);
+
+  // Load selected board
+  useEffect(() => {
+    if (activeBoardId) getBoardFull(activeBoardId).then(r => setBoardData(r.data));
+  }, [activeBoardId]);
 
   const columns = useMemo(() => (boardData?.columns || []).slice().sort(bySort), [boardData]);
   const cardsByColumn = useMemo(() => {
@@ -256,7 +234,7 @@ export default function Kanban() {
     return map;
   }, [boardData]);
 
-  // Create board
+  // Create Board
   const handleCreateBoard = async () => {
     const title = newBoardTitle.trim();
     if (!title) return;
@@ -266,7 +244,7 @@ export default function Kanban() {
     setNewBoardTitle('');
   };
 
-  // Column actions
+  // Columns
   const handleAddColumn = async () => {
     if (!activeBoardId) return;
     const title = prompt('Column title?');
@@ -308,7 +286,7 @@ export default function Kanban() {
     await reorderColumns({ boardId: activeBoardId, orderedIds: newOrder.map(c => c.id) });
   };
 
-  // Add card
+  // Cards
   const handleAddCard = async (columnId) => {
     const title = prompt('Card title?');
     if (!title) return;
@@ -316,7 +294,7 @@ export default function Kanban() {
     setBoardData(prev => ({ ...prev, cards: [...prev.cards, data] }));
   };
 
-  // Reorder cards within a column
+  // Reorder cards in a column
   const handleReorderCards = (columnId, e) => {
     const { active, over } = e;
     if (!active || !over || active.id === over.id) return;
@@ -326,6 +304,7 @@ export default function Kanban() {
     const toIndex = current.findIndex(c => c.id === over.id);
 
     const newOrder = arrayMove(current, fromIndex, toIndex);
+    // optimistic UI
     setBoardData(prev => ({
       ...prev,
       cards: [
@@ -337,7 +316,7 @@ export default function Kanban() {
     reorderCards({ columnId, orderedIds: newOrder.map(c => c.id) });
   };
 
-  // Move across columns
+  // Cross-column move (quick helpers)
   const moveLeft = async (card) => {
     const idx = columns.findIndex(c => c.id === card.columnId);
     if (idx > 0) {
@@ -355,7 +334,7 @@ export default function Kanban() {
     }
   };
 
-  // Open/close modal
+  // Card Modal open/close
   const openCard = async (card) => {
     setActiveCard(card);
     setModalOpen(true);
@@ -364,7 +343,7 @@ export default function Kanban() {
   };
   const closeModal = () => { setModalOpen(false); setActiveCard(null); setActiveCardComments([]); };
 
-  // Save/delete card
+  // Save/Delete card
   const saveCard = async () => {
     const payload = {
       title: activeCard.title,
@@ -386,7 +365,7 @@ export default function Kanban() {
     closeModal();
   };
 
-  // Attachments & comments
+  // Attachments & Comments
   const attachToActiveCard = async (file) => {
     await attachFile({ cardId: activeCard.id, file });
     const { data } = await getBoardFull(activeBoardId);
@@ -461,8 +440,6 @@ export default function Kanban() {
                         onDeleteColumn={handleDeleteColumn}
                         onReorderCards={handleReorderCards}
                         onOpenCard={openCard}
-                        onMoveLeft={moveLeft}
-                        onMoveRight={moveRight}
                       />
                     ))}
                   </SortableContext>
@@ -483,8 +460,6 @@ export default function Kanban() {
         onAttach={attachToActiveCard}
         comments={activeCardComments}
         onAddComment={addCommentToActiveCard}
-        onMoveLeft={moveLeft}
-        onMoveRight={moveRight}
       />
     </div>
   );
