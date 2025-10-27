@@ -2,6 +2,8 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { useEffect, useRef } from "react";
 import { ClipboardList, Image, Menu, LogOut, Mail } from "lucide-react";
+import { Layout } from "lucide-react";
+
 
 export default function Sidebar({
   isOpen,
@@ -101,6 +103,12 @@ export default function Sidebar({
               collapsed={collapsed}
               label="Email"
             />
+            <SideItem
+          to="/dashboard/kanban"
+          icon={<Layout className="w-5 h-5" />}  // or: <span className="w-5 h-5">🗂️</span>
+           collapsed={collapsed}
+         label="Kanban"
+           />
           </nav>
         </div>
 
