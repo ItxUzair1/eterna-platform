@@ -1,5 +1,6 @@
 const { signup, signin } = require('./auth.service');
 
+// Register user
 const registerUser = async (req, res) => {
   try {
     const user = await signup(req.body);
@@ -9,9 +10,16 @@ const registerUser = async (req, res) => {
   }
 };
 
+// Login user
 const loginUser = async (req, res) => {
   try {
-    const { user, token } = await signin(req.body);
+    // destructure directly from req.body
+    const { identifier, password } = req.body;
+    if (!identifier || !password) {
+      return res.status(400).json({ error: 'Identifier and password are required' });
+    }
+
+    const { user, token } = await signin({ identifier, password });
     res.json({ user, token });
   } catch (err) {
     res.status(401).json({ error: err.message });
