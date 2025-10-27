@@ -236,6 +236,7 @@ export default function Kanban() {
 
   // Create Board
   const handleCreateBoard = async () => {
+    console.log("clickable")
     const title = newBoardTitle.trim();
     if (!title) return;
     const { data } = await createBoard({ title });
