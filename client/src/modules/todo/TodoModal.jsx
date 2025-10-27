@@ -1,4 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { CalendarIcon, TagIcon, FlagIcon, DocumentIcon } from '@heroicons/react/24/outline';
+
+const ALLOWED = ['New', 'In Progress', 'Pending', 'Completed', 'Cancelled'];
+
+const clamp = (min, v, max) => Math.max(min, Math.min(v, max));
 
 const TodoModal = ({ todo, categories, onClose, onSubmit }) => {
   const [formData, setFormData] = useState({
@@ -11,12 +16,18 @@ const TodoModal = ({ todo, categories, onClose, onSubmit }) => {
     dueDate: '',
   });
 
+  // slider state (height percentage of viewport)
+  const [vhPct, setVhPct] = useState(85);
+  const dragging = useRef(false);
+  const startY = useRef(0);
+  const startPct = useRef(vhPct);
+
   useEffect(() => {
     if (todo) {
       setFormData({
         title: todo.title || '',
         description: todo.description || '',
-        status: todo.status || 'New',
+        status: ALLOWED.includes(todo.status) ? todo.status : 'New',
         priority: todo.priority || 'Medium',
         categoryId: todo.categoryId || '',
         assignedDate: todo.assignedDate?.split('T')[0] || new Date().toISOString().split('T')[0],
@@ -25,136 +36,206 @@ const TodoModal = ({ todo, categories, onClose, onSubmit }) => {
     }
   }, [todo]);
 
+  const onChange = (k) => (e) => setFormData((p) => ({ ...p, [k]: e.target.value }));
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (todo) {
-      onSubmit(todo.id, formData);
-    } else {
-      onSubmit(formData);
-    }
+    if (todo) onSubmit(todo.id, formData);
+    else onSubmit(formData);
   };
 
+  // drag-to-resize handlers
+  const onPointerDown = (e) => {
+    dragging.current = true;
+    startY.current = e.clientY || (e.touches && e.touches[0]?.clientY) || 0;
+    startPct.current = vhPct;
+    document.body.style.userSelect = 'none';
+  };
+  const onPointerMove = (e) => {
+    if (!dragging.current) return;
+    const y = e.clientY || (e.touches && e.touches[0]?.clientY) || 0;
+    const delta = y - startY.current;
+    const deltaPct = (delta / window.innerHeight) * 100;
+    setVhPct((prev) => clamp(55, startPct.current - deltaPct, 95));
+  };
+  const onPointerUp = () => {
+    dragging.current = false;
+    document.body.style.userSelect = '';
+  };
+
+  useEffect(() => {
+    window.addEventListener('mousemove', onPointerMove);
+    window.addEventListener('mouseup', onPointerUp);
+    window.addEventListener('touchmove', onPointerMove, { passive: false });
+    window.addEventListener('touchend', onPointerUp);
+    return () => {
+      window.removeEventListener('mousemove', onPointerMove);
+      window.removeEventListener('mouseup', onPointerUp);
+      window.removeEventListener('touchmove', onPointerMove);
+      window.removeEventListener('touchend', onPointerUp);
+    };
+  }, []);
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-          <h2 className="text-xl font-semibold">
-            {todo ? 'Edit Task' : 'Create New Task'}
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-slate-900/45">
+      {/* Modal shell with adjustable height */}
+      <div
+        className="w-full max-w-3xl rounded-3xl bg-white shadow-2xl flex flex-col overflow-hidden"
+        style={{ height: `min(${vhPct}vh, 900px)` }}
+        role="dialog"
+        aria-modal="true"
+      >
+        {/* Top gradient bar */}
+        <div className="h-1 w-full bg-gradient-to-r from-indigo-600 via-fuchsia-500 to-cyan-500" />
+
+        {/* Sticky header with grab handle */}
+        <div className="sticky top-0 -mb-px bg-white z-10">
+          <div
+            className="w-full flex items-center justify-center pt-2 cursor-row-resize"
+            onMouseDown={onPointerDown}
+            onTouchStart={onPointerDown}
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+            <div className="h-1.5 w-16 rounded-full bg-slate-200" />
+          </div>
+          <div className="px-5 sm:px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+            <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-slate-900">
+              {todo ? 'Edit Task' : 'Create Task'}
+            </h2>
+            <button
+              onClick={onClose}
+              className="px-3 py-1.5 text-slate-500 hover:text-slate-700 rounded-lg hover:bg-slate-50"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div className="form-group">
-            <label className="form-label required">Task Title</label>
-            <input
-              type="text"
-              className="form-control"
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              placeholder="Enter task title"
-              required
-            />
-          </div>
+        {/* Scrollable content area */}
+        <div className="flex-1 overflow-auto px-5 sm:px-6 pb-4 pt-5">
+          <form id="todoForm" onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
+            <div className="md:col-span-2">
+              <label className="text-xs font-semibold text-slate-600">Title</label>
+              <input
+                required
+                value={formData.title}
+                onChange={onChange('title')}
+                placeholder="e.g., Prepare sprint demo"
+                className="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 sm:py-3.5 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              />
+            </div>
 
-          <div className="form-group">
-            <label className="form-label">Description</label>
-            <textarea
-              className="form-control"
-              rows="3"
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="Enter task description (optional)"
-            />
-          </div>
+            <div className="md:col-span-2">
+              <label className="text-xs font-semibold text-slate-600">Description</label>
+              <div className="relative">
+                <DocumentIcon className="w-5 h-5 text-slate-400 absolute left-3 top-3.5" />
+                <textarea
+                  rows={4}
+                  value={formData.description}
+                  onChange={onChange('description')}
+                  placeholder="Add helpful details..."
+                  className="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-11 py-3 sm:py-3.5 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                />
+              </div>
+            </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="form-group">
-              <label className="form-label">Category</label>
+            <div>
+              <label className="text-xs font-semibold text-slate-600">Category</label>
+              <div className="relative">
+                <TagIcon className="w-5 h-5 text-slate-400 absolute left-3 top-3.5" />
+                <select
+                  value={formData.categoryId}
+                  onChange={onChange('categoryId')}
+                  className="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-10 py-3 sm:py-3.5 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                >
+                  <option value="">No Category</option>
+                  {Array.isArray(categories) &&
+                    categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.title}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-600">Priority</label>
+              <div className="relative">
+                <FlagIcon className="w-5 h-5 text-slate-400 absolute left-3 top-3.5" />
+                <select
+                  value={formData.priority}
+                  onChange={onChange('priority')}
+                  className="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-10 py-3 sm:py-3.5 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                >
+                  <option>Low</option>
+                  <option>Medium</option>
+                  <option>High</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-600">Status</label>
               <select
-                className="form-control"
-                value={formData.categoryId}
-                onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
+                value={formData.status}
+                onChange={onChange('status')}
+                className="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 sm:py-3.5 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
               >
-                <option value="">No Category</option>
-                {categories.map(cat => (
-                  <option key={cat.id} value={cat.id}>{cat.title}</option>
+                {ALLOWED.map((x) => (
+                  <option key={x}>{x}</option>
                 ))}
               </select>
             </div>
 
-            <div className="form-group">
-              <label className="form-label">Priority</label>
-              <select
-                className="form-control"
-                value={formData.priority}
-                onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-              >
-                <option value="Low">Low</option>
-                <option value="Medium">Medium</option>
-                <option value="High">High</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="form-group">
-              <label className="form-label">Status</label>
-              <select
-                className="form-control"
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-              >
-                <option value="New">New</option>
-                <option value="In Progress">In Progress</option>
-                <option value="Pending">Pending</option>
-                <option value="Completed">Completed</option>
-                <option value="Cancelled">Cancelled</option>
-              </select>
+            <div>
+              <label className="text-xs font-semibold text-slate-600">Assigned Date</label>
+              <div className="relative">
+                <CalendarIcon className="w-5 h-5 text-slate-400 absolute left-3 top-3.5" />
+                <input
+                  type="date"
+                  value={formData.assignedDate}
+                  onChange={onChange('assignedDate')}
+                  className="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-10 py-3 sm:py-3.5 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                />
+              </div>
             </div>
 
-            <div className="form-group">
-              <label className="form-label">Assigned Date</label>
-              <input
-                type="date"
-                className="form-control"
-                value={formData.assignedDate}
-                onChange={(e) => setFormData({ ...formData, assignedDate: e.target.value })}
-              />
+            <div className="md:col-span-2">
+              <label className="text-xs font-semibold text-slate-600">Due Date</label>
+              <div className="relative">
+                <CalendarIcon className="w-5 h-5 text-slate-400 absolute left-3 top-3.5" />
+                <input
+                  type="date"
+                  value={formData.dueDate}
+                  onChange={onChange('dueDate')}
+                  min={formData.assignedDate}
+                  className="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-10 py-3 sm:py-3.5 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                />
+              </div>
             </div>
-          </div>
+          </form>
+        </div>
 
-          <div className="form-group">
-            <label className="form-label">Due Date</label>
-            <input
-              type="date"
-              className="form-control"
-              value={formData.dueDate}
-              onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
-              min={formData.assignedDate}
-            />
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4">
+        {/* Sticky footer with actions */}
+        <div className="sticky bottom-0 bg-white border-t border-slate-100 px-5 sm:px-6 py-3 sm:py-4">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-2 sm:justify-end">
             <button
               type="button"
               onClick={onClose}
-              className="btn btn--outline"
+              className="w-full sm:w-auto px-4 py-3 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50"
             >
               Cancel
             </button>
-            <button type="submit" className="btn btn--primary">
+            <button
+              form="todoForm"
+              type="submit"
+              className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-gradient-to-r from-indigo-600 via-fuchsia-500 to-cyan-500 text-white font-semibold shadow-lg hover:shadow-xl"
+            >
               {todo ? 'Update Task' : 'Create Task'}
             </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );
