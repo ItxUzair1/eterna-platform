@@ -138,8 +138,11 @@ async createTodo(req, res) {
 
   async createCategory(req, res) {
     try {
+      console.log(req.user)
       const { tenantId } = req.user;
+      console.log(req.body)
       const categoryData = { ...req.body, tenantId };
+      console.log(categoryData)
       const category = await todoService.createCategory(categoryData);
       return successResponse(res, category, 'Category created successfully', 201);
     } catch (error) {

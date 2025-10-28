@@ -109,6 +109,7 @@ export default function Sidebar({
            collapsed={collapsed}
          label="Kanban"
            />
+           <SideItem to="/dashboard/crm" icon={<Layout className="w-5 h-5" />} collapsed={collapsed} label="CRM" />
           </nav>
         </div>
 

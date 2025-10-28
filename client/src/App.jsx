@@ -6,6 +6,7 @@ import DashboardLayout from "./layouts/DashboardLayout";
 import Email from './pages/Email';
 import Kanban from './pages/Kanban';
 import Todo from "./pages/Todo";
+import CRM from "./pages/CRM";
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
         <Route path="/dashboard/email" element={<Email />} />
         <Route path="/dashboard/kanban" element={<Kanban />} />
         <Route path="/dashboard/todo" element={<Todo />} />
+        <Route path="/dashboard/crm" element={<CRM />} />
         </Route>
       </Routes>
     </Router>

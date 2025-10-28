@@ -1,5 +1,14 @@
 import React from 'react';
-import { MagnifyingGlassIcon, PlusIcon, CheckCircleIcon, ClockIcon, PauseCircleIcon, XCircleIcon, BoltIcon, ListBulletIcon } from '@heroicons/react/24/outline';
+import {
+  MagnifyingGlassIcon,
+  PlusIcon,
+  CheckCircleIcon,
+  ClockIcon,
+  PauseCircleIcon,
+  XCircleIcon,
+  BoltIcon,
+  ListBulletIcon,
+} from '@heroicons/react/24/outline';
 
 const STATUS_META = {
   all: { label: 'All Tasks', icon: ListBulletIcon, bg: 'bg-slate-100', fc: 'text-slate-700' },
@@ -22,7 +31,8 @@ const TodoSidebar = ({
   const statusKeys = ['all', 'New', 'In Progress', 'Pending', 'Completed', 'Cancelled'];
 
   return (
-    <aside className="w-72 shrink-0 h-screen sticky top-0 backdrop-blur-xl bg-white/70 border-r border-white/40 shadow-[0_8px_30px_rgba(0,0,0,0.06)] px-5 py-6 flex flex-col gap-6">
+    <aside className="w-72 shrink-0 h-screen sticky top-0 backdrop-blur-xl bg-white/70 border-r border-white/40 shadow-[0_8px_30px_rgba(0,0,0,0.06)] px-5 py-6 flex flex-col">
+      {/* Brand + quick new category */}
       <div className="flex items-center justify-between">
         <div className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-indigo-600 via-fuchsia-500 to-cyan-500 bg-clip-text text-transparent">
           Eterna Tasks
@@ -36,7 +46,8 @@ const TodoSidebar = ({
         </button>
       </div>
 
-      <div className="relative">
+      {/* Search */}
+      <div className="relative mt-6">
         <MagnifyingGlassIcon className="absolute left-3 top-2.5 w-5 h-5 text-slate-400" />
         <input
           placeholder="Search tasks..."
@@ -44,7 +55,8 @@ const TodoSidebar = ({
         />
       </div>
 
-      <div>
+      {/* Status filters */}
+      <div className="mt-6">
         <div className="text-[11px] font-semibold tracking-wider text-slate-500 uppercase mb-3">
           Tasks
         </div>
@@ -78,17 +90,22 @@ const TodoSidebar = ({
         </div>
       </div>
 
-      <div className="mt-2">
-        <div className="flex items-center justify-between mb-2">
-          <div className="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">Categories</div>
-          <button
-            onClick={onCreateCategory}
-            className="text-xs text-indigo-600 hover:text-indigo-500"
-          >
-            New
-          </button>
+      {/* Scrollable categories fill remaining height */}
+      <div className="mt-4 flex-1 overflow-y-auto overscroll-contain pr-1">
+        {/* Sticky subheader */}
+        <div className="sticky top-0 z-10 bg-white/70 backdrop-blur pt-1 pb-2">
+          <div className="flex items-center justify-between">
+            <div className="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">Categories</div>
+            <button
+              onClick={onCreateCategory}
+              className="text-xs text-indigo-600 hover:text-indigo-500"
+            >
+              New
+            </button>
+          </div>
         </div>
-        <div className="space-y-1.5">
+
+        <div className="space-y-1.5 pb-4">
           <button
             onClick={() => onCategorySelect('all')}
             className={`w-full text-left px-3 py-2 rounded-xl text-sm transition ${
@@ -97,6 +114,7 @@ const TodoSidebar = ({
           >
             All Categories
           </button>
+
           {Array.isArray(categories) &&
             categories.map((c) => (
               <button
@@ -106,13 +124,12 @@ const TodoSidebar = ({
                   selectedCategory === c.id ? 'bg-cyan-600 text-white shadow' : 'hover:bg-white/70 text-slate-700'
                 }`}
               >
-                <span className="w-3.5 h-3.5 rounded-sm" style={{ backgroundColor: c.color }} />
+                <span className="w-3.5 h-3.5 rounded-sm shrink-0" style={{ backgroundColor: c.color }} />
                 <span className="truncate">{c.title}</span>
               </button>
             ))}
         </div>
       </div>
-
     </aside>
   );
 };

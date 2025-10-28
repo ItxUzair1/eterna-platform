@@ -150,18 +150,18 @@ class TodoService {
     });
   }
 
-  async createCategory(data) {
-    const { tenantId, title, color } = data;
-    // if relation required, connect tenant; keep tenantId too if you store scalar
-    return prisma.todoCategory.create({
-      data: {
-        title,
-        color,
-        tenant: { connect: { id: tenantId } },
-        tenantId,
-      },
-    });
-  }
+async createCategory(data) {
+  const { tenantId, title, color } = data;
+
+  return prisma.todoCategory.create({
+    data: {
+      title,
+      color,
+      tenant: { connect: { id: tenantId } },
+    },
+  });
+}
+
 
   async updateCategory(id, tenantId, data) {
     // if you don't have a composite unique (id, tenantId), fallback to updateMany

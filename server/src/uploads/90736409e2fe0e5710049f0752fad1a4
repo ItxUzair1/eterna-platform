@@ -1,0 +1,7 @@
+Name,Email,Phone,Company,Status,Tags
+Alice Johnson,alice.johnson@example.com,+1-202-555-0147,Acme Corp,New,priority
+Bob Singh,bob.singh@example.com,+44 20 7946 0958,Globex,In Progress,webform
+Carla Mendes,carla.mendes@example.com,+55 11 91234-5678,Initech,Pending,partner
+David Lee,david.lee@example.com,+61 2 9374 4000,Stark Industries,Won,high-value
+Eva Martin,eva.martin@example.com,+34 91 123 4567,Wayne Enterprises,Lost,archived
+Farah Khan,farah.khan@example.com,+92 300 1234567,TechBridge,New,pakistan
