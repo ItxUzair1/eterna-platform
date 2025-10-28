@@ -5,6 +5,7 @@ const authRoutes = require('./modules/auth/auth.routes');
 const emailRoutes = require('./modules/email/email.routes');
 const todoRoutes = require('./modules/todo/todo.routes');
 const kanbanRoutes = require('./modules/kanban/kanban.routes');
+const crmRoutes=require("./modules/crm/crm.routes")
 
 
 
@@ -26,6 +27,8 @@ app.use('/api/todos', todoRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/email', emailRoutes);
 app.use('/api/kanban', kanbanRoutes);
+app.use("/api/crm", crmRoutes);
+
 
 // TODO: add user and role routes when ready
 // const userRoutes = require('./modules/users/user.routes');
