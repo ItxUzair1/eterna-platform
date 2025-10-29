@@ -16,18 +16,18 @@ const Login = () => {
     e.preventDefault();
     setSubmitting(true);
     setError("");
-    try {
-      const res = await signin({
-        identifier: form.identifier.trim(),
-        password: form.password,
-      });
-      // ensure identifier + password are sent
-      // on success, save token and maybe redirect
-      localStorage.setItem("token", res.token);
-      window.location.href = "/dashboard";
-    } catch (err) {
-      setError(err?.response?.data?.error || "Login failed. Please try again.");
-    } finally {
+// after successful signin:
+try {
+  const res = await signin({ identifier: form.identifier.trim(), password: form.password });
+  if (res.requires2fa) {
+    localStorage.setItem('twofaToken', res.twofaToken);
+    window.location.href = '/verify-2fa';
+    return;
+  }
+  localStorage.setItem('token', res.token);
+  window.location.href = '/dashboard';
+} catch (err) { /* existing error */ }
+ finally {
       setSubmitting(false);
     }
   };

@@ -38,7 +38,7 @@ export default function NavBar({ onToggleSidebar }) {
         </button>
 
         <button
-          onClick={() => navigate("/account-settings")}
+          onClick={() => navigate("account-settings")}
           className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden cursor-pointer hover:ring-2 hover:ring-indigo-500 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
           title="Account Settings"
           aria-label="Account Settings"

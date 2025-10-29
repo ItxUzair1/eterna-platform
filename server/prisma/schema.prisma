@@ -1,6 +1,6 @@
 generator client {
   provider = "prisma-client-js"
-  output   = "../node_modules/.prisma/client"  // Optional: explicit output path
+  output   = "../node_modules/.prisma/client"
 }
 
 datasource db {
@@ -9,7 +9,7 @@ datasource db {
 }
 
 // =============================================================
-// ===============  CORE ENTITIES  ==============================
+// ===============  CORE ENTITIES  =============================
 // =============================================================
 
 model Tenant {
@@ -42,6 +42,12 @@ model Tenant {
   invoices                Invoice[]
   storageUsage            StorageUsage?
 
+  // Back-relations for auth flows
+  emailVerifications EmailVerification[]
+  passwordResets     PasswordReset[]
+  twofaSecrets       TwofaSecret[]
+  invitations        Invitation[]
+
   @@map("tenants")
 }
 
@@ -61,24 +67,26 @@ model Role {
   users  User[]
 
   @@index([tenantId])
-  @@unique([tenantId, name]) // <-- make role names unique per-tenant
+  @@unique([tenantId, name])
   @@map("roles")
 }
 
-
 model User {
-  id           Int      @id @default(autoincrement())
-  tenantId     Int
-  email        String   @unique
-  username     String   @unique
-  passwordHash String
-  phone        String?
-  jobTitle     String?
-  photo        String?
-  twofaEnabled Boolean  @default(false)
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id              Int      @id @default(autoincrement())
+  tenantId        Int
+  email           String   @unique
+  username        String   @unique
+  emailVerifiedAt DateTime?
+  firstName       String?
+  lastName        String?
+  passwordHash    String
+  phone           String?
+  jobTitle        String?
+  photo           String?
+  twofaEnabled    Boolean  @default(false)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   roleId Int
@@ -99,10 +107,92 @@ model User {
   createdBoards           Board[]
   userPermissions         UserPermission[]
 
+  // Back-relations for auth flows
+  emailVerifications EmailVerification[]
+  passwordResets     PasswordReset[]
+  twofaSecret        TwofaSecret?
+  sentInvitations    Invitation[]                 @relation("UserInvites")
+
   @@index([tenantId])
   @@index([email])
   @@map("users")
 }
+
+// =============================================================
+// ===============  AUTH MODELS ================================
+// =============================================================
+
+model EmailVerification {
+  id        Int      @id @default(autoincrement())
+  tenantId  Int
+  userId    Int
+  token     String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId])
+  @@map("email_verifications")
+}
+
+model PasswordReset {
+  id        Int      @id @default(autoincrement())
+  tenantId  Int
+  userId    Int
+  token     String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId])
+  @@map("password_resets")
+}
+
+model TwofaSecret {
+  id            Int      @id @default(autoincrement())
+  tenantId      Int
+  userId        Int      @unique
+  method        String   // "whatsapp"
+  secret        String   // hashed one-time code or seed
+  recoveryCodes String   @db.Text // JSON array of hashed codes
+  enabled       Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId])
+  @@map("twofa_secrets")
+}
+
+model Invitation {
+  id          Int      @id @default(autoincrement())
+  tenantId    Int
+  email       String
+  token       String   @unique
+  roleName    String   @default("Member")
+  inviterId   Int
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime @default(now())
+
+  tenant  Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  inviter User   @relation("UserInvites", fields: [inviterId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, email])
+  @@map("invitations")
+}
+
+// =============================================================
+// ===============  PERMISSIONS ================================
+// =============================================================
 
 model Permission {
   id       Int    @id @default(autoincrement())
@@ -590,7 +680,6 @@ model Todo {
   @@index([status])
   @@map("todos")
 }
-
 
 // =============================================================
 // ===============  IMAGE CONVERTER ============================
