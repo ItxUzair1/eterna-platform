@@ -600,8 +600,8 @@ model ConvertJob {
   id          Int       @id @default(autoincrement())
   tenantId    Int
   userId      Int
-  status      String
-  createdAt   DateTime  @default(now())
+  status      String     @default("PENDING")
+  createdAt   DateTime   @default(now())
   completedAt DateTime?
 
   tenant Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -614,15 +614,15 @@ model ConvertJob {
 }
 
 model ConvertJobItem {
-  id           Int     @id @default(autoincrement())
+  id           Int      @id @default(autoincrement())
   jobId        Int
   sourceFileId Int
   targetFormat String
-  status       String
+  status       String    @default("PENDING")
   outputFileId Int?
-  error        String? @db.Text
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  error        String?   @db.Text
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   job        ConvertJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
   sourceFile File       @relation("SourceFile", fields: [sourceFileId], references: [id], onDelete: Cascade)
