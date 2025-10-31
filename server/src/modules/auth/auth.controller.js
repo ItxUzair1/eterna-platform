@@ -20,7 +20,16 @@ const loginUser = async (req, res) => {
   try {
     const { identifier, password } = req.body;
     if (!identifier || !password) return res.status(400).json({ error: 'Identifier and password are required' });
-    const out = await svc.signin({ identifier, password });
+    const out = await svc.signin({ identifier, password, ip: req.ip, userAgent: req.headers['user-agent'] });
+    res.json(out);
+  } catch (err) { res.status(401).json({ error: err.message }); }
+};
+
+const refresh = async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    if (!refreshToken) return res.status(400).json({ error: 'Missing refreshToken' });
+    const out = await svc.refreshSession({ refreshToken, ip: req.ip, userAgent: req.headers['user-agent'] });
     res.json(out);
   } catch (err) { res.status(401).json({ error: err.message }); }
 };
@@ -111,5 +120,5 @@ module.exports = {
   requestReset, resetPassword,
   enable2fa, useRecovery,
   invite, acceptInvite,
-  me, updateProfile, changeEmail, changePassword
+  me, updateProfile, changeEmail, changePassword,refresh
 };

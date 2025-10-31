@@ -47,6 +47,7 @@ model Tenant {
   passwordResets     PasswordReset[]
   twofaSecrets       TwofaSecret[]
   invitations        Invitation[]
+  refreshTokens      RefreshToken[]
 
   @@map("tenants")
 }
@@ -85,6 +86,7 @@ model User {
   photo           String?
   twofaEnabled    Boolean  @default(false)
   isActive        Boolean  @default(true)
+  tokenVersion    Int      @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -106,6 +108,7 @@ model User {
   createdCards            Card[]                   @relation("CardCreator")
   createdBoards           Board[]
   userPermissions         UserPermission[]
+  refreshTokens           RefreshToken[]
 
   // Back-relations for auth flows
   emailVerifications EmailVerification[]
@@ -123,13 +126,14 @@ model User {
 // =============================================================
 
 model EmailVerification {
-  id        Int      @id @default(autoincrement())
-  tenantId  Int
-  userId    Int
-  token     String   @unique
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime @default(now())
+  id          Int      @id @default(autoincrement())
+  tenantId    Int
+  userId      Int
+  token       String?             // legacy, nullable
+  hashedToken String   @unique     // new SHA-256
+  expiresAt   DateTime
+  usedAt      DateTime?
+  createdAt   DateTime @default(now())
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -139,13 +143,14 @@ model EmailVerification {
 }
 
 model PasswordReset {
-  id        Int      @id @default(autoincrement())
-  tenantId  Int
-  userId    Int
-  token     String   @unique
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime @default(now())
+  id          Int      @id @default(autoincrement())
+  tenantId    Int
+  userId      Int
+  token       String?            // legacy, nullable
+  hashedToken String   @unique    // new SHA-256
+  expiresAt   DateTime
+  usedAt      DateTime?
+  createdAt   DateTime @default(now())
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -154,29 +159,12 @@ model PasswordReset {
   @@map("password_resets")
 }
 
-model TwofaSecret {
-  id            Int      @id @default(autoincrement())
-  tenantId      Int
-  userId        Int      @unique
-  method        String   // "whatsapp"
-  secret        String   // hashed one-time code or seed
-  recoveryCodes String   @db.Text // JSON array of hashed codes
-  enabled       Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([tenantId, userId])
-  @@map("twofa_secrets")
-}
-
 model Invitation {
   id          Int      @id @default(autoincrement())
   tenantId    Int
   email       String
-  token       String   @unique
+  token       String?            // legacy, nullable
+  hashedToken String   @unique    // new SHA-256
   roleName    String   @default("Member")
   inviterId   Int
   expiresAt   DateTime
@@ -188,6 +176,43 @@ model Invitation {
 
   @@index([tenantId, email])
   @@map("invitations")
+}
+
+model RefreshToken {
+  id          Int      @id @default(autoincrement())
+  tenantId    Int
+  userId      Int
+  hashedToken String   @unique
+  userAgent   String?
+  ip          String?
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+  revokedAt   DateTime?
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tenantId])
+  @@map("refresh_tokens")
+}
+
+model TwofaSecret {
+  id            Int      @id @default(autoincrement())
+  tenantId      Int
+  userId        Int      @unique
+  method        String
+  secret        String
+  recoveryCodes String   @db.Text
+  enabled       Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId])
+  @@map("twofa_secrets")
 }
 
 // =============================================================
@@ -209,12 +234,12 @@ model Permission {
 }
 
 model UserPermission {
-  id           Int     @id @default(autoincrement())
+  id           Int      @id @default(autoincrement())
   userId       Int
   permissionId Int?
   appKey       String
   scopeKey     String
-  enabled      Boolean @default(false)
+  enabled      Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

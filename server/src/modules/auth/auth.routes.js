@@ -22,5 +22,7 @@ router.get('/me', verifyToken, ctrl.me);
 router.put('/me/profile', verifyToken, ctrl.updateProfile);
 router.post('/me/change-email', verifyToken, ctrl.changeEmail);
 router.post('/me/change-password', verifyToken, ctrl.changePassword);
+router.post('/refresh', rateLimiter(r => `refresh:${r.ip}`, 30, 60000), ctrl.refresh);
+
 
 module.exports = router;

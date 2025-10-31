@@ -1,34 +1,28 @@
 const jwt = require("jsonwebtoken");
 const prisma = require("../config/db");
 
-const verifyToken = (req, res, next) => {
+
+const verifyToken = async (req, res, next) => {
   try {
     const header = (req.headers.authorization || "").trim();
-    if (!header?.toLowerCase().startsWith("bearer ")) {
-      return res.status(401).json({ error: "Missing token" });
-    }
+    if (!header?.toLowerCase().startsWith("bearer ")) return res.status(401).json({ error: "Missing token" });
     const token = header.slice(7).trim();
-    if (!process.env.JWT_SECRET) {
-      return res.status(500).json({ error: "Server misconfiguration: JWT_SECRET not set" });
-    }
+    if (!process.env.JWT_SECRET) return res.status(500).json({ error: "Server misconfiguration: JWT_SECRET not set" });
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    if (!decoded?.id || !decoded?.tenantId) {
-      return res.status(401).json({ error: "Invalid token payload" });
-    }
+    if (!decoded?.id || !decoded?.tenantId) return res.status(401).json({ error: "Invalid token payload" });
+
+    const user = await prisma.user.findUnique({ where: { id: decoded.id }, select: { id: true, tenantId: true, roleId: true, tokenVersion: true, emailVerifiedAt: true } });
+    if (!user || user.tokenVersion !== (decoded.tv ?? 0)) return res.status(401).json({ error: "Invalid token" });
+
     req.user = decoded;
-    req.context = {
-      tenantId: decoded.tenantId,
-      userId: decoded.id,
-      roleId: decoded.roleId || null,
-      // placeholders for future:
-      enabledApps: decoded.enabledApps || [],
-      permissions: decoded.permissions || [],
-    };
+    req.context = { tenantId: user.tenantId, userId: user.id, roleId: user.roleId, enabledApps: [], permissions: [] };
     next();
   } catch {
     return res.status(401).json({ error: "Invalid token" });
   }
 };
+
+module.exports = { verifyToken };
 
 // Keep your existing permit() for Owner/Admin checks
 const permit = (...roles) => {

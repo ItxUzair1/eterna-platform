@@ -18,14 +18,10 @@ const Login = () => {
     setError("");
 // after successful signin:
 try {
-  const res = await signin({ identifier: form.identifier.trim(), password: form.password });
-  if (res.requires2fa) {
-    localStorage.setItem('twofaToken', res.twofaToken);
-    window.location.href = '/verify-2fa';
-    return;
-  }
-  localStorage.setItem('token', res.token);
-  window.location.href = '/dashboard';
+      const res = await signin({ identifier: form.identifier.trim(), password: form.password });
+      localStorage.setItem('accessToken', res.accessToken);
+      localStorage.setItem('refreshToken', res.refreshToken);
+      window.location.href = '/dashboard';
 } catch (err) { /* existing error */ }
  finally {
       setSubmitting(false);

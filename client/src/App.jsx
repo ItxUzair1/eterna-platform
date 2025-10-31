@@ -5,8 +5,6 @@ import Register from "./pages/Register";
 import VerifyEmail from "./pages/VerifyEmail";
 import ForgotPassword from "./pages/ForgetPassword";
 import ResetPassword from "./pages/ResetPassword";
-import Verify2FA from "./pages/Verify2FA";
-import UseRecovery from "./pages/UseRecovery";
 import AcceptInvite from "./pages/AcceptInvite";
 import SettingsAccount from "./pages/SettingsAccount";
 import DashboardLayout from "./layouts/DashboardLayout";
@@ -28,8 +26,6 @@ function App() {
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/verify-2fa" element={<Verify2FA />} />
-        <Route path="/use-recovery" element={<UseRecovery />} />
         <Route path="/accept-invite" element={<AcceptInvite />} />
 
 
@@ -51,7 +47,6 @@ function App() {
             </PrivateRoute>
           }
         >
-          {/* Use relative paths under /dashboard and provide an index route */}
           <Route index element={<div className="p-6">Welcome to Eterna</div>} />
           <Route path="email" element={<Email />} />
           <Route path="kanban" element={<Kanban />} />
