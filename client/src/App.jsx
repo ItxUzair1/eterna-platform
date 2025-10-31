@@ -34,12 +34,13 @@ function App() {
 
 
         {/* Dashboard Layout */}
-        <Route path="/dashboard" element={<DashboardLayout />}/>
+        <Route path="/dashboard" element={<DashboardLayout />}>
         <Route path="/dashboard/email" element={<Email />} />
         <Route path="/dashboard/kanban" element={<Kanban />} />
         <Route path="/dashboard/todo" element={<Todo />} />
         <Route path="/dashboard/crm" element={<CRM />} />
          <Route path="/dashboard/image-converter" element={<ImageConverter />} />
+         </Route>
 
         {/* Protected area */}
         <Route
