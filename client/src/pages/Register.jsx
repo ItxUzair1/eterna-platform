@@ -1,6 +1,8 @@
+// client/src/pages/Register.jsx
 import React, { useMemo, useState } from "react";
-import { signup } from "../services/authService"; // adjust path if needed
+import { signup } from "../services/authService";
 
+// Password strength helpers
 const strengthLabel = (score) => {
   if (score >= 4) return { text: "Strong", color: "text-emerald-400", bar: "bg-emerald-500" };
   if (score === 3) return { text: "Good", color: "text-lime-300", bar: "bg-lime-400" };
@@ -17,6 +19,28 @@ const scorePassword = (pwd = "") => {
   if (/[^A-Za-z0-9]/.test(pwd)) score++;
   return Math.min(score, 4);
 };
+
+// Stable Input component
+const Input = React.memo(function Input({ label, hint, right, className = "", ...props }) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <label className="block text-sm font-medium text-slate-200">{label}</label>
+        {hint && <span className="text-xs text-slate-400">{hint}</span>}
+      </div>
+      <div className="relative group">
+        <input
+          {...props}
+          value={props.value ?? ""}
+          onChange={props.onChange}
+          className={`w-full rounded-xl bg-slate-900/60 border border-white/10 text-white placeholder-slate-400 px-4 py-3 pr-11 outline-none ring-0 transition focus:border-indigo-400 focus:bg-slate-900/70 ${className}`}
+        />
+        {right && <div className="absolute right-3 top-1/2 -translate-y-1/2">{right}</div>}
+        <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-white/5 group-focus-within:ring-indigo-400/40 transition" />
+      </div>
+    </div>
+  );
+});
 
 const Register = () => {
   const [accountType, setAccountType] = useState("Entrepreneur"); // role
@@ -38,7 +62,8 @@ const Register = () => {
   const pwdLabel = useMemo(() => strengthLabel(pwdScore), [pwdScore]);
 
   const handleChange = (e) => {
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
     if (error) setError("");
   };
 
@@ -53,53 +78,25 @@ const Register = () => {
     setSubmitting(true);
     setError("");
     try {
-      // Compose payload your backend expects
       const payload = {
         email: form.email.trim(),
         username: form.username.trim(),
         password: form.password,
         role: accountType, // "Entrepreneur" | "Enterprise"
-        // Optional: send names to store profile later
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
         enterpriseName: accountType === "Enterprise" ? form.enterpriseName.trim() : undefined,
       };
-
       const res = await signup(payload);
-
-      // Optional: Auto-redirect to login after success
-      // alert("Registration successful! Please sign in.");
-      // window.location.href = "/login";
-
-      // Or auto-login workflow can be added if backend returns token
       console.log("Signup success:", res);
-      alert("Registration successful!");
+      alert("Registration successful! Check your email to verify your account.");
+      // Optionally redirect: window.location.href = "/"
     } catch (err) {
       setError(err?.response?.data?.error || "Signup failed. Please try again.");
     } finally {
       setSubmitting(false);
     }
   };
-
-  // Reusable input with consistent styles
-  const Input = ({ label, hint, right, ...props }) => (
-    <div>
-      <div className="flex items-center justify-between mb-1">
-        <label className="block text-sm font-medium text-slate-200">{label}</label>
-        {hint && <span className="text-xs text-slate-400">{hint}</span>}
-      </div>
-      <div className="relative group">
-        <input
-          {...props}
-          className={`w-full rounded-xl bg-slate-900/60 border border-white/10 text-white placeholder-slate-400 px-4 py-3 pr-11 outline-none ring-0 transition focus:border-indigo-400 focus:bg-slate-900/70 ${props.className || ""}`}
-        />
-        {right && (
-          <div className="absolute right-3 top-1/2 -translate-y-1/2">{right}</div>
-        )}
-        <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-white/5 group-focus-within:ring-indigo-400/40 transition" />
-      </div>
-    </div>
-  );
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-800 p-6">
@@ -231,17 +228,7 @@ const Register = () => {
                     onClick={() => setShowPwd((s) => !s)}
                     className="text-slate-400 hover:text-slate-200 transition"
                   >
-                    {showPwd ? (
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.6">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l18 18M10.58 10.58A2 2 0 0012 14a2 2 0 001.42-3.42" />
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.88 5.5A9.76 9.76 0 0112 5c4.2 0 7.86 2.61 10 6-.61 1.08-1.39 2.06-2.3 2.88" />
-                      </svg>
-                    ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.6">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.1 12.32C3.94 7.97 7.67 5 12 5c4.33 0 8.06 2.97 9.9 7.32-.8 1.79-2.03 3.34-3.53 4.49C16.96 18.56 14.58 19.5 12 19.5s-4.96-.94-6.37-2.69A13.3 13.3 0 012.1 12.32z" />
-                        <circle cx="12" cy="12" r="3" />
-                      </svg>
-                    )}
+                    {showPwd ? "🙈" : "👁️"}
                   </button>
                 }
               />
@@ -272,17 +259,7 @@ const Register = () => {
                     onClick={() => setShowConfirmPwd((s) => !s)}
                     className="text-slate-400 hover:text-slate-200 transition"
                   >
-                    {showConfirmPwd ? (
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.6">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l18 18M10.58 10.58A2 2 0 0012 14a2 2 0 001.42-3.42" />
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.88 5.5A9.76 9.76 0 0112 5c4.2 0 7.86 2.61 10 6-.61 1.08-1.39 2.06-2.3 2.88" />
-                      </svg>
-                    ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.6">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.1 12.32C3.94 7.97 7.67 5 12 5c4.33 0 8.06 2.97 9.9 7.32-.8 1.79-2.03 3.34-3.53 4.49C16.96 18.56 14.58 19.5 12 19.5s-4.96-.94-6.37-2.69A13.3 13.3 0 012.1 12.32z" />
-                        <circle cx="12" cy="12" r="3" />
-                      </svg>
-                    )}
+                    {showConfirmPwd ? "🙈" : "👁️"}
                   </button>
                 }
               />
