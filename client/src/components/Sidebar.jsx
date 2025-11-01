@@ -15,7 +15,7 @@ export default function Sidebar({
   const drawerRef = useRef(null);
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
+    localStorage.removeItem("accessToken");
     navigate("/");
   };
 

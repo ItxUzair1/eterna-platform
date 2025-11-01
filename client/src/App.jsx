@@ -7,6 +7,7 @@ import ForgotPassword from "./pages/ForgetPassword";
 import ResetPassword from "./pages/ResetPassword";
 import AcceptInvite from "./pages/AcceptInvite";
 import SettingsAccount from "./pages/SettingsAccount";
+import EmailSettings from "./pages/EmailSettings";
 import DashboardLayout from "./layouts/DashboardLayout";
 import Email from "./pages/Email";
 import Kanban from "./pages/Kanban";
@@ -53,6 +54,7 @@ function App() {
           <Route path="todo" element={<Todo />} />
           <Route path="crm" element={<CRM />} />
           <Route path="account-settings" element={<SettingsAccount />} />
+          <Route path="email-settings" element={<EmailSettings />} />
         </Route>
 
         {/* Catch-all */}
