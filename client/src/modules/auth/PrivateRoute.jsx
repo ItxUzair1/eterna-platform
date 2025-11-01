@@ -1,9 +1,13 @@
-// src/features/auth/PrivateRoute.jsx
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { useContext } from 'react';
+import { AuthContext } from '../../context/AuthContext';
 
 export default function PrivateRoute({ children }) {
-  const token = localStorage.getItem('token');
+  const { user, loading } = useContext(AuthContext) || {};
   const location = useLocation();
-  if (!token) return <Navigate to="/" replace state={{ from: location }} />;
-  return children;
+
+  if (loading) return null; // or a spinner
+  if (!user) return <Navigate to="/" replace state={{ from: location }} />;
+
+  return children || <Outlet />;
 }

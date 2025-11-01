@@ -16,4 +16,4 @@ export const changeEmail = (email) => api.post('/auth/me/change-email', { email 
 export const changePassword = (oldPassword, newPassword) => api.post('/auth/me/change-password', { oldPassword, newPassword }).then(r => r.data);
 
 export const sendInvite = (email, roleName) => api.post('/auth/invite', { email, roleName }).then(r => r.data);
-export const acceptInvite = (token, username, password) => api.post('/auth/invite/accept', { token, username, password }).then(r => r.data);
+export const acceptInvite = (token, username, password, teamId = null) => api.post('/auth/invite/accept', { token, username, password, teamId }).then(r => r.data);

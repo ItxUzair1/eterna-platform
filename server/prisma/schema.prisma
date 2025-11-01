@@ -255,21 +255,6 @@ model UserPermission {
 // ===============  TEAMS & GROUPS =============================
 // =============================================================
 
-model Team {
-  id        Int      @id @default(autoincrement())
-  tenantId  Int
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  tenant  Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  members TeamMember[]
-  boards  Board[]
-
-  @@index([tenantId])
-  @@map("teams")
-}
-
 model TeamMember {
   id        Int      @id @default(autoincrement())
   teamId    Int
@@ -284,6 +269,39 @@ model TeamMember {
   @@index([teamId])
   @@index([userId])
   @@map("team_members")
+}
+
+model Team {
+  id        Int      @id @default(autoincrement())
+  tenantId  Int
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant  Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  members TeamMember[]
+  boards  Board[]
+
+  // Back-relation to TeamPermission
+  teamPermissions TeamPermission[]
+
+  @@index([tenantId])
+  @@map("teams")
+}
+
+model TeamPermission {
+  id        Int      @id @default(autoincrement())
+  teamId    Int
+  appKey    String
+  scopeKey  String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, appKey, scopeKey])
+  @@index([teamId])
+  @@map("team_permissions")
 }
 
 // =============================================================

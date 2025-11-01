@@ -1,29 +1,38 @@
 // src/components/Sidebar.jsx
 import { NavLink, useNavigate } from "react-router-dom";
-import { useEffect, useRef } from "react";
-import { ClipboardList, Image, Menu, LogOut, Mail } from "lucide-react";
-import { Layout } from "lucide-react";
+import { useContext, useEffect, useMemo, useRef } from "react";
+import { ClipboardList, Image, Menu, LogOut, Mail, Layout, Shield } from "lucide-react";
+import { AuthContext } from "../context/AuthContext";
 
+const ALL_ITEMS = [
+  { to: "/dashboard/todo", key: "todos", label: "To-Do App", icon: <ClipboardList className="w-5 h-5" /> },
+  { to: "/dashboard/image-converter", key: "files", label: "Image Converter", icon: <Image className="w-5 h-5" /> },
+  { to: "/dashboard/email", key: "email", label: "Email", icon: <Mail className="w-5 h-5" /> },
+  { to: "/dashboard/kanban", key: "kanban", label: "Kanban", icon: <Layout className="w-5 h-5" /> },
+  { to: "/dashboard/crm", key: "crm", label: "CRM", icon: <Layout className="w-5 h-5" /> },
+  // Admin appears only if enabled via RBAC (key: 'admin')
+  { to: "/admin", key: "admin", label: "Admin", icon: <Shield className="w-5 h-5" /> }
+];
 
-export default function Sidebar({
-  isOpen,
-  collapsed,
-  onToggleCollapse,
-  onCloseMobile,
-}) {
+export default function Sidebar({ isOpen, collapsed, onToggleCollapse, onCloseMobile }) {
   const navigate = useNavigate();
   const drawerRef = useRef(null);
+  const { enabledApps = [] } = useContext(AuthContext) || {};
+
+  // Filter items by enabled apps; 'dashboard' key is not used here, so strictly RBAC-driven
+  const items = useMemo(() => {
+    return ALL_ITEMS.filter(i => enabledApps.includes(i.key));
+  }, [enabledApps]);
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
+    localStorage.removeItem("accessToken");
+    localStorage.removeItem("refreshToken");
     navigate("/");
   };
 
   // Close on Escape
   useEffect(() => {
-    const onKey = (e) => {
-      if (e.key === "Escape" && isOpen) onCloseMobile();
-    };
+    const onKey = (e) => { if (e.key === "Escape" && isOpen) onCloseMobile(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [isOpen, onCloseMobile]);
@@ -44,9 +53,7 @@ export default function Sidebar({
     <>
       {/* Mobile overlay */}
       <div
-        className={`fixed inset-0 bg-black/40 z-40 transition-opacity sm:hidden ${
-          isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
-        }`}
+        className={`fixed inset-0 bg-black/40 z-40 transition-opacity sm:hidden ${isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
         aria-hidden={!isOpen}
         onClick={onCloseMobile}
       />
@@ -54,24 +61,16 @@ export default function Sidebar({
       {/* Sidebar container */}
       <aside
         ref={drawerRef}
-        className={`
-          fixed left-0 top-0 bottom-0 z-50
-          bg-gray-900 text-white
-          ${baseWidth}
-          flex flex-col justify-between
-          transition-[width,transform] duration-300 will-change-transform
-          sm:translate-x-0
-          ${isOpen ? "translate-x-0" : "-translate-x-full sm:translate-x-0"}
-        `}
+        className={`fixed left-0 top-0 bottom-0 z-50 bg-gray-900 text-white ${baseWidth}
+          flex flex-col justify-between transition-[width,transform] duration-300 will-change-transform
+          sm:translate-x-0 ${isOpen ? "translate-x-0" : "-translate-x-full sm:translate-x-0"}`}
         aria-label="Sidebar"
       >
         {/* Top */}
         <div>
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-gray-800">
-            <h1 className={`${collapsed ? "sr-only" : "block"} text-xl font-bold`}>
-              MyApps
-            </h1>
+            <h1 className={`${collapsed ? "sr-only" : "block"} text-xl font-bold`}>MyApps</h1>
             <button
               onClick={onToggleCollapse}
               className="hover:bg-gray-800 p-2 rounded-md transition focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
@@ -85,31 +84,9 @@ export default function Sidebar({
 
           {/* Nav */}
           <nav className="mt-4 space-y-1 px-2" role="navigation" aria-label="Primary">
-            <SideItem
-              to="/dashboard/todo"
-              icon={<ClipboardList className="w-5 h-5" />}
-              collapsed={collapsed}
-              label="To-Do App"
-            />
-            <SideItem
-              to="/dashboard/image-converter"
-              icon={<Image className="w-5 h-5" />}
-              collapsed={collapsed}
-              label="Image Converter"
-            />
-            <SideItem
-              to="/dashboard/email"
-              icon={<Mail className="w-5 h-5" />}
-              collapsed={collapsed}
-              label="Email"
-            />
-            <SideItem
-          to="/dashboard/kanban"
-          icon={<Layout className="w-5 h-5" />}  // or: <span className="w-5 h-5">🗂️</span>
-           collapsed={collapsed}
-         label="Kanban"
-           />
-           <SideItem to="/dashboard/crm" icon={<Layout className="w-5 h-5" />} collapsed={collapsed} label="CRM" />
+            {items.map(it => (
+              <SideItem key={it.to} to={it.to} icon={it.icon} collapsed={collapsed} label={it.label} />
+            ))}
           </nav>
         </div>
 
@@ -134,12 +111,9 @@ function SideItem({ to, icon, label, collapsed }) {
     <NavLink
       to={to}
       className={({ isActive }) =>
-        `
-        group flex items-center gap-3 px-3 py-2 rounded-md transition-colors
-        outline-none focus-visible:ring-2 focus-visible:ring-indigo-500
-        hover:bg-gray-800
-        ${isActive ? "bg-gray-800 text-indigo-400 font-semibold" : "text-gray-300"}
-      `
+        `group flex items-center gap-3 px-3 py-2 rounded-md transition-colors
+         outline-none focus-visible:ring-2 focus-visible:ring-indigo-500
+         hover:bg-gray-800 ${isActive ? "bg-gray-800 text-indigo-400 font-semibold" : "text-gray-300"}`
       }
       aria-current={({ isActive }) => (isActive ? "page" : undefined)}
       title={label}

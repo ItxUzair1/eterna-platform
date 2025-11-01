@@ -11,25 +11,87 @@ const { signAccess, issueRefresh, rotateRefresh, revokeAllUserRefresh, sha256 } 
 const token24h = () => new Date(Date.now() + 24 * 60 * 60 * 1000);
 const makeToken = () => crypto.randomBytes(32).toString('hex');
 
+// modules/auth/auth.service.js (snippet)
 const createTenantWithOwner = async ({ email, username, password, roleName, profile }) => {
   return await prisma.$transaction(async (tx) => {
     const exists = await tx.user.findUnique({ where: { email } });
     if (exists) throw new Error('User already exists');
 
-    const tenant = await tx.tenant.create({ data: { name: profile?.enterpriseName || `${username}'s Org` } });
+    // Infer plan from roleName or explicit profile flag (adjust to your signup payload)
+    const plan = (profile?.plan || (roleName === 'Owner' ? 'Enterprise' : 'Individual'));
 
+    // Create tenant with plan
+    const tenant = await tx.tenant.create({
+      data: { name: profile?.enterpriseName || `${username}'s Org`, plan }
+    });
+
+    // Ensure role exists for this tenant
     let role = await tx.role.findFirst({ where: { tenantId: tenant.id, name: roleName } });
-    if (!role) role = await tx.role.create({ data: { tenantId: tenant.id, name: roleName, description: `${roleName} role` } });
+    if (!role) {
+      role = await tx.role.create({
+        data: { tenantId: tenant.id, name: roleName, description: `${roleName} role` }
+      });
+    }
 
+    // Create owner user
     const hashed = await bcrypt.hash(password, 10);
     const user = await tx.user.create({
       data: {
-        tenantId: tenant.id, email, username, passwordHash: hashed, roleId: role.id,
-        firstName: profile?.firstName, lastName: profile?.lastName, jobTitle: profile?.jobTitle || null, photo: null
+        tenantId: tenant.id,
+        email,
+        username,
+        passwordHash: hashed,
+        roleId: role.id,
+        firstName: profile?.firstName,
+        lastName: profile?.lastName,
+        jobTitle: profile?.jobTitle || null,
+        photo: null
       },
-      select: { id: true, tenantId: true, email: true, username: true, roleId: true, createdAt: true, emailVerifiedAt: true, tokenVersion: true },
+      select: { id: true, tenantId: true, email: true, username: true, roleId: true, createdAt: true, emailVerifiedAt: true, tokenVersion: true }
     });
 
+    // Seed default permissions based on plan
+    if (plan === 'Enterprise') {
+      // Enterprise gets all apps including Admin
+      const defaults = [
+        { appKey: 'admin', scopeKey: 'read' },
+        { appKey: 'admin', scopeKey: 'manage' },
+        { appKey: 'crm', scopeKey: 'read' },
+        { appKey: 'kanban', scopeKey: 'read' },
+        { appKey: 'email', scopeKey: 'read' },
+        { appKey: 'money', scopeKey: 'read' },
+        { appKey: 'todos', scopeKey: 'read' },
+        { appKey: 'files', scopeKey: 'read' },
+        { appKey: 'image', scopeKey: 'read' },
+        { appKey: 'image', scopeKey: 'convert' }
+      ];
+      await Promise.all(defaults.map(d =>
+        tx.permission.upsert({
+          where: { tenantId_appKey_scopeKey: { tenantId: tenant.id, appKey: d.appKey, scopeKey: d.scopeKey } },
+          update: {},
+          create: { tenantId: tenant.id, appKey: d.appKey, scopeKey: d.scopeKey }
+        })
+      ));
+    } else if (plan === 'Individual') {
+      // Individual gets all apps EXCEPT Admin
+      const defaults = [
+        { appKey: 'crm', scopeKey: 'read' },
+        { appKey: 'kanban', scopeKey: 'read' },
+        { appKey: 'email', scopeKey: 'read' },
+        { appKey: 'money', scopeKey: 'read' },
+        { appKey: 'todos', scopeKey: 'read' },
+        { appKey: 'files', scopeKey: 'read' }
+      ];
+      await Promise.all(defaults.map(d =>
+        tx.permission.upsert({
+          where: { tenantId_appKey_scopeKey: { tenantId: tenant.id, appKey: d.appKey, scopeKey: d.scopeKey } },
+          update: {},
+          create: { tenantId: tenant.id, appKey: d.appKey, scopeKey: d.scopeKey }
+        })
+      ));
+    }
+
+    // Email verification token
     const raw = makeToken();
     await tx.emailVerification.create({
       data: { tenantId: tenant.id, userId: user.id, hashedToken: sha256(raw), expiresAt: token24h() }
@@ -38,6 +100,7 @@ const createTenantWithOwner = async ({ email, username, password, roleName, prof
     return { tenant, user, verifyToken: raw };
   });
 };
+
 
 const signup = async (data) => {
   const { email, username, password, role = 'Entrepreneur', firstName, lastName, enterpriseName } = data;
@@ -122,20 +185,40 @@ const invite = async ({ inviterId, tenantId, email, roleName }) => {
   return { ok: true };
 };
 
-const acceptInvite = async ({ token, username, password }) => {
+const acceptInvite = async ({ token, username, password, teamId }) => {
   const inv = await prisma.invitation.findUnique({ where: { hashedToken: sha256(token) } });
   if (!inv || inv.acceptedAt || inv.expiresAt < new Date()) throw new Error('Invalid or expired invitation');
   const existing = await prisma.user.findFirst({ where: { tenantId: inv.tenantId, email: inv.email } });
   if (existing) throw new Error('User already exists');
 
-  const role = await prisma.role.findFirst({ where: { tenantId: inv.tenantId, name: inv.roleName } });
-  if (!role) throw new Error('Role not found');
+  console.log(`[acceptInvite] Looking for role: tenantId=${inv.tenantId}, roleName="${inv.roleName}"`);
+  let role = await prisma.role.findFirst({ where: { tenantId: inv.tenantId, name: inv.roleName } });
+  if (!role) {
+    // Auto-create role if it doesn't exist
+    console.log(`[acceptInvite] Role not found, creating "${inv.roleName}" role for tenant`);
+    role = await prisma.role.create({
+      data: { tenantId: inv.tenantId, name: inv.roleName, description: `${inv.roleName} role` }
+    });
+  }
 
   const hashed = await bcrypt.hash(password, 10);
   const user = await prisma.user.create({
     data: { tenantId: inv.tenantId, email: inv.email, username, passwordHash: hashed, roleId: role.id, emailVerifiedAt: new Date(), tokenVersion: 1 }
   });
   await prisma.invitation.update({ where: { id: inv.id }, data: { acceptedAt: new Date() } });
+  
+  // If teamId is provided, add user to that team
+  if (teamId) {
+    const team = await prisma.team.findFirst({ where: { id: +teamId, tenantId: inv.tenantId } });
+    if (team) {
+      await prisma.teamMember.upsert({
+        where: { teamId_userId: { teamId: +teamId, userId: user.id } },
+        update: {},
+        create: { teamId: +teamId, userId: user.id }
+      });
+    }
+  }
+  
   return { user };
 };
 

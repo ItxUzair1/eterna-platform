@@ -10,13 +10,16 @@ export default function AcceptInvite() {
   const [err, setErr] = useState('');
 
   useEffect(() => {
-    setToken(new URLSearchParams(window.location.search).get('token') || '');
+    const params = new URLSearchParams(window.location.search);
+    setToken(params.get('token') || '');
   }, []);
 
   const submit = async (e) => {
     e.preventDefault(); setErr('');
     try {
-      await acceptInvite(token, username.trim(), password);
+      const params = new URLSearchParams(window.location.search);
+      const teamId = params.get('teamId');
+      await acceptInvite(token, username.trim(), password, teamId ? parseInt(teamId) : null);
       setOk(true);
     } catch (e) { setErr(e?.response?.data?.error || 'Failed to accept invite'); }
   };

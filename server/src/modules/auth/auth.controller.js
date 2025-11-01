@@ -80,10 +80,14 @@ const invite = async (req, res) => {
 
 const acceptInvite = async (req, res) => {
   try {
-    const { token, username, password } = req.body;
-    const { user } = await svc.acceptInvite({ token, username, password });
+    const { token, username, password, teamId } = req.body;
+    console.log(`[acceptInvite] token present: ${!!token}, username: ${username}, teamId: ${teamId}`);
+    const { user } = await svc.acceptInvite({ token, username, password, teamId });
     res.json({ user });
-  } catch (err) { res.status(400).json({ error: err.message }); }
+  } catch (err) { 
+    console.error(`[acceptInvite] Error:`, err.message);
+    res.status(400).json({ error: err.message }); 
+  }
 };
 
 const me = async (req, res) => {
