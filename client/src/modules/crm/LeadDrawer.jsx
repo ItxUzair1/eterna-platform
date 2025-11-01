@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { crmApi } from "../../services/crmService";
 
 export default function LeadDrawer({ open, onClose, leadId, mode, onSaved }) {
+  const navigate = useNavigate();
   const isEdit = mode === "edit";
   const [data, setData] = useState({ name: "", company: "", email: "", phone: "", statusId: "", tags: "" });
   const [statuses, setStatuses] = useState([]);
@@ -82,6 +84,22 @@ export default function LeadDrawer({ open, onClose, leadId, mode, onSaved }) {
     setAppointments(apptRes.data.items || apptRes.data);
   };
 
+  // Compose email to lead
+  const composeEmailToLead = () => {
+    if (data.email) {
+      navigate('/dashboard/email', {
+        state: {
+          composeTo: data.email,
+          leadId: leadId,
+          leadName: data.name
+        }
+      });
+      onClose(); // Close drawer when navigating
+    } else {
+      alert('This lead has no email address.');
+    }
+  };
+
   return (
     <div className={`fixed inset-y-0 right-0 w-full sm:w-[480px] bg-white text-slate-900 border-l border-slate-200 shadow-xl transform transition-transform duration-300 z-50 ${open ? "translate-x-0" : "translate-x-full"}`}>
       <div className="flex items-center justify-between p-4 border-b border-slate-200">
@@ -115,6 +133,16 @@ export default function LeadDrawer({ open, onClose, leadId, mode, onSaved }) {
               options={[{ value: "", label: "None" }, ...statuses.map((s) => ({ value: String(s.id), label: s.value }))]}
             />
             <TextArea label="Tags (comma separated)" value={data.tags || ""} onChange={(v) => setData((d) => ({ ...d, tags: v }))} />
+            
+            {/* Email shortcut button - only show if lead has email and is being edited */}
+            {isEdit && data.email && (
+              <button
+                onClick={composeEmailToLead}
+                className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow transition flex items-center justify-center gap-2 font-semibold"
+              >
+                ✉️ Compose Email to {data.name}
+              </button>
+            )}
           </div>
         )}
 

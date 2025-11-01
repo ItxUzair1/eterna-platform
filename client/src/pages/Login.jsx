@@ -1,11 +1,13 @@
 import React, { useState } from "react";
 import { signin } from "../services/authService"; // adjust path if needed
+import { useNavigate } from "react-router-dom";
 
 const Login = () => {
   const [form, setForm] = useState({ identifier: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const navigate = useNavigate();
 
   const handleChange = (e) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -21,7 +23,8 @@ try {
       const res = await signin({ identifier: form.identifier.trim(), password: form.password });
       localStorage.setItem('accessToken', res.accessToken);
       localStorage.setItem('refreshToken', res.refreshToken);
-      window.location.href = '/dashboard';
+      navigate("/dashboard", { replace: true });
+// eslint-disable-next-line no-unused-vars
 } catch (err) { /* existing error */ }
  finally {
       setSubmitting(false);

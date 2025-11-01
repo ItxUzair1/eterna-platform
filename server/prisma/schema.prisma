@@ -582,7 +582,6 @@ model MailAccount {
   @@index([tenantId])
   @@map("mail_accounts")
 }
-
 model MailMessage {
   id            Int       @id @default(autoincrement())
   tenantId      Int
@@ -592,9 +591,15 @@ model MailMessage {
   from          String
   to            String
   cc            String?
+  bcc           String?
   subject       String
   bodyHtml      String?   @db.Text
   bodyText      String?   @db.Text
+  // New fields for threading and inspection
+  messageId     String?   @unique
+  inReplyTo     String?
+  references    String?   @db.Text   // space-separated list
+  headers       Json?
   sentAt        DateTime?
   receivedAt    DateTime?
   createdAt     DateTime  @default(now())
@@ -605,6 +610,7 @@ model MailMessage {
 
   @@index([tenantId, mailAccountId])
   @@index([threadId])
+  @@index([folder])
   @@map("mail_messages")
 }
 
@@ -628,11 +634,13 @@ model MailTemplate {
   name      String
   subject   String
   body      String   @db.Text
+  // Allow variables doc in the future via JSON metadata if needed
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
+  @@unique([tenantId, name])
   @@index([tenantId])
   @@map("mail_templates")
 }
