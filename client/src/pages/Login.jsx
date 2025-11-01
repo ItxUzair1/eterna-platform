@@ -18,15 +18,17 @@ const Login = () => {
     e.preventDefault();
     setSubmitting(true);
     setError("");
-// after successful signin:
-try {
+    try {
       const res = await signin({ identifier: form.identifier.trim(), password: form.password });
       localStorage.setItem('accessToken', res.accessToken);
       localStorage.setItem('refreshToken', res.refreshToken);
-      navigate("/dashboard", { replace: true });
-// eslint-disable-next-line no-unused-vars
-} catch (err) { /* existing error */ }
- finally {
+      // Refresh auth context before navigating
+      window.location.href = "/dashboard";
+    } catch (err) {
+      const errorMessage = err?.response?.data?.error || err?.message || 'Failed to sign in. Please check your credentials.';
+      setError(errorMessage);
+      console.error('Sign-in error:', err);
+    } finally {
       setSubmitting(false);
     }
   };
