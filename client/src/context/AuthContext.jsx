@@ -15,14 +15,42 @@ export const AuthProvider = ({ children }) => {
     setLoading(true);
     setError(null);
     try {
-      const [meRes, appsRes] = await Promise.all([
+      // Check if user has access token
+      const accessToken = localStorage.getItem('accessToken');
+      if (!accessToken) {
+        setUser(null);
+        setEnabledApps([]);
+        setPermissions({});
+        setError('No access token');
+        setLoading(false);
+        return;
+      }
+
+      const [meRes, appsRes] = await Promise.allSettled([
         api.get('/auth/me'),
         api.get('/permissions/me/apps')
       ]);
-      setUser(meRes.data.user || null);
-      setEnabledApps(appsRes.data.apps || []);
-      setPermissions(appsRes.data.perms || {});
+      
+      // Handle /auth/me response
+      if (meRes.status === 'fulfilled') {
+        setUser(meRes.value.data.user || null);
+      } else {
+        console.warn('Failed to fetch user:', meRes.reason?.response?.data?.error || meRes.reason?.message);
+        setUser(null);
+      }
+
+      // Handle /permissions/me/apps response
+      if (appsRes.status === 'fulfilled') {
+        setEnabledApps(appsRes.value.data.apps || []);
+        setPermissions(appsRes.value.data.perms || {});
+      } else {
+        console.warn('Failed to fetch apps/permissions:', appsRes.reason?.response?.data?.error || appsRes.reason?.message);
+        // If permissions endpoint fails, set empty defaults but don't fail completely
+        setEnabledApps([]);
+        setPermissions({});
+      }
     } catch (e) {
+      console.error('Auth refresh error:', e);
       setUser(null);
       setEnabledApps([]);
       setPermissions({});

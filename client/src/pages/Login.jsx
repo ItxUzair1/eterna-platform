@@ -18,15 +18,25 @@ const Login = () => {
     e.preventDefault();
     setSubmitting(true);
     setError("");
-// after successful signin:
-try {
-      const res = await signin({ identifier: form.identifier.trim(), password: form.password });
-      localStorage.setItem('accessToken', res.accessToken);
-      localStorage.setItem('refreshToken', res.refreshToken);
-      navigate("/dashboard", { replace: true });
-// eslint-disable-next-line no-unused-vars
-} catch (err) { /* existing error */ }
- finally {
+    try {
+      const res = await signin({ 
+        identifier: form.identifier.trim(), 
+        password: form.password 
+      });
+      
+      if (res.accessToken && res.refreshToken) {
+        localStorage.setItem('accessToken', res.accessToken);
+        localStorage.setItem('refreshToken', res.refreshToken);
+        navigate("/dashboard", { replace: true });
+      } else {
+        setError("Invalid response from server");
+      }
+    } catch (err) {
+      setError(err?.response?.data?.error || 'Login failed');
+      // Clear any existing tokens on login failure
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+    } finally {
       setSubmitting(false);
     }
   };

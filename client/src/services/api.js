@@ -28,47 +28,80 @@ api.interceptors.response.use(
   (r) => r,
   async (error) => {
     const original = error.config;
-    if (error.response?.status === 401 && !original._retry) {
-      original._retry = true;
 
-      if (isRefreshing) {
-        return new Promise((resolve, reject) => {
-          queue.push({ resolve, reject });
-        }).then((token) => {
-          original.headers.Authorization = `Bearer ${token}`;
-          return api(original);
-        });
+    // Handle 401 errors that need token refresh
+    if (error?.response?.status === 401 && 
+        !original._retry && 
+        !original.url.startsWith('/auth/')) { // Better way to check auth endpoints
+      
+      const refreshToken = localStorage.getItem('refreshToken');
+      if (!refreshToken) {
+        // No refresh token, clear auth and redirect
+        localStorage.removeItem('accessToken');
+        setAuthHeader(null);
+        if (!window.location.pathname.includes('/login')) {
+          window.location.href = '/login';
+        }
+        return Promise.reject(error);
       }
 
+      // Prevent multiple simultaneous refresh attempts
+      if (isRefreshing) {
+        try {
+          const token = await new Promise((resolve, reject) => {
+            queue.push({ resolve, reject });
+          });
+          original.headers.Authorization = `Bearer ${token}`;
+          return api(original);
+        } catch (e) {
+          return Promise.reject(e);
+        }
+      }
+
+      original._retry = true;
       isRefreshing = true;
+
       try {
-        const rt = localStorage.getItem('refreshToken');
-        if (!rt) throw new Error('No refresh token');
+        // Use a new axios instance to avoid interceptors
+        const resp = await axios.post(
+          `${import.meta.env.VITE_API_URL}/auth/refresh`,
+          { refreshToken },
+          { headers: { 'Content-Type': 'application/json' } }
+        );
 
-        const resp = await axios.post(`${import.meta.env.VITE_API_URL}/auth/refresh`, { refreshToken: rt });
-        const { accessToken, refreshToken } = resp.data;
+        const { accessToken, refreshToken: newRefreshToken } = resp.data;
 
+        // Update stored tokens
         localStorage.setItem('accessToken', accessToken);
-        localStorage.setItem('refreshToken', refreshToken);
+        localStorage.setItem('refreshToken', newRefreshToken);
         setAuthHeader(accessToken);
 
+        // Retry queued requests
         queue.forEach(p => p.resolve(accessToken));
         queue = [];
 
+        // Retry original request
         original.headers.Authorization = `Bearer ${accessToken}`;
         return api(original);
       } catch (e) {
+        // Clear auth state on refresh failure
         queue.forEach(p => p.reject(e));
         queue = [];
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
         setAuthHeader(null);
-        if (window.location.pathname !== '/') window.location.href = '/';
+        
+        // Only redirect to login if not already on auth pages
+        if (!window.location.pathname.includes('/login') && 
+            !window.location.pathname.includes('/signup')) {
+          window.location.href = '/login';
+        }
         return Promise.reject(e);
       } finally {
         isRefreshing = false;
       }
     }
+
     return Promise.reject(error);
   }
 );

@@ -5,16 +5,25 @@ const prisma = require("../config/db");
 const verifyToken = async (req, res, next) => {
   try {
     const header = (req.headers.authorization || "").trim();
-    if (!header?.toLowerCase().startsWith("bearer ")) {
-      return res.status(401).json({ error: "Missing token" });
+    if (!header || !header.toLowerCase().startsWith("bearer ")) {
+      // No Authorization header supplied
+      return res.status(401).json({ error: "Missing Authorization header (Bearer token required)" });
     }
     const token = header.slice(7).trim();
     if (!process.env.JWT_SECRET) {
+      console.error('[verifyToken] JWT_SECRET missing in environment');
       return res.status(500).json({ error: "Server misconfiguration: JWT_SECRET not set" });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    if (!decoded?.id || !decoded?.tenantId) {
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (e) {
+      console.error('[verifyToken] jwt.verify failed:', e && e.message);
+      return res.status(401).json({ error: `Invalid token: ${e?.message || 'verification failed'}` });
+    }
+
+    if (!decoded || !decoded.id || !decoded.tenantId) {
       return res.status(401).json({ error: "Invalid token payload" });
     }
 
@@ -22,8 +31,13 @@ const verifyToken = async (req, res, next) => {
       where: { id: decoded.id },
       select: { id: true, tenantId: true, roleId: true, tokenVersion: true, emailVerifiedAt: true }
     });
-    if (!user || user.tokenVersion !== (decoded.tv ?? 0)) {
-      return res.status(401).json({ error: "Invalid token" });
+    if (!user) {
+      console.error(`[verifyToken] user not found: id=${decoded.id}`);
+      return res.status(401).json({ error: 'Invalid token: user not found' });
+    }
+    if (user.tokenVersion !== (decoded.tv ?? 0)) {
+      console.error(`[verifyToken] tokenVersion mismatch for user=${decoded.id} (token tv=${decoded.tv ?? 0} db=${user.tokenVersion})`);
+      return res.status(401).json({ error: 'Invalid token: token version mismatch' });
     }
 
     // Load tenant plan for plan guard
@@ -43,8 +57,9 @@ const verifyToken = async (req, res, next) => {
     };
 
     return next();
-  } catch {
-    return res.status(401).json({ error: "Invalid token" });
+  } catch (e) {
+    console.error('[verifyToken] unexpected error:', e && e.message);
+    return res.status(401).json({ error: e?.message || "Invalid token" });
   }
 };
 
