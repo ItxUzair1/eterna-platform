@@ -135,7 +135,7 @@ const signin = async ({ identifier, password, ip, userAgent }) => {
   if (!user) throw new Error('Invalid credentials');
   const ok = await bcrypt.compare(password, user.passwordHash);
   if (!ok) throw new Error('Invalid credentials');
-  if (!user.emailVerifiedAt) throw new Error('Invalid credentials');
+  if (!user.emailVerifiedAt) throw new Error('Email not verified. Please check your inbox and click the verification link.');
 
   const accessToken = signAccess({ id: user.id, tenantId: user.tenantId, roleId: user.roleId, tokenVersion: user.tokenVersion });
   const refreshToken = await issueRefresh({ user, ip, userAgent });

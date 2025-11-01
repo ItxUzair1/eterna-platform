@@ -19,23 +19,15 @@ const Login = () => {
     setSubmitting(true);
     setError("");
     try {
-      const res = await signin({ 
-        identifier: form.identifier.trim(), 
-        password: form.password 
-      });
-      
-      if (res.accessToken && res.refreshToken) {
-        localStorage.setItem('accessToken', res.accessToken);
-        localStorage.setItem('refreshToken', res.refreshToken);
-        navigate("/dashboard", { replace: true });
-      } else {
-        setError("Invalid response from server");
-      }
+      const res = await signin({ identifier: form.identifier.trim(), password: form.password });
+      localStorage.setItem('accessToken', res.accessToken);
+      localStorage.setItem('refreshToken', res.refreshToken);
+      // Refresh auth context before navigating
+      window.location.href = "/dashboard";
     } catch (err) {
-      setError(err?.response?.data?.error || 'Login failed');
-      // Clear any existing tokens on login failure
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
+      const errorMessage = err?.response?.data?.error || err?.message || 'Failed to sign in. Please check your credentials.';
+      setError(errorMessage);
+      console.error('Sign-in error:', err);
     } finally {
       setSubmitting(false);
     }

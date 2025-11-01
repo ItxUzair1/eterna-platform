@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { crmApi } from "../../services/crmService";
 import { ChevronDown, Filter, MoreHorizontal, Plus, Search, Upload, User2 } from "lucide-react";
 import clsx from "clsx";
@@ -30,6 +30,10 @@ export default function LeadTable({ onOpenDrawer, onOpenImport }) {
     return def;
   });
 
+  // Use refs to prevent infinite loops
+  const fetchingRef = useRef(false);
+  const abortControllerRef = useRef(null);
+
   const columns = useMemo(() => columnsAll.filter((c) => visibleCols[c.key]), [visibleCols]);
 
   const toggleSelect = (id) => {
@@ -39,26 +43,90 @@ export default function LeadTable({ onOpenDrawer, onOpenImport }) {
     setSelected(next);
   };
 
-  const fetchData = async () => {
-    setLoading(true);
-    const params = {
-      q: query || undefined,
-      statusId: filters.statusId || undefined,
-      ownerId: filters.ownerId || undefined,
-      page,
-      pageSize,
-      sort: "updatedAt:desc",
-    };
-    const [{ data: listRes }, { data: statusRes }] = await Promise.all([crmApi.listLeads(params), crmApi.listStatuses()]);
-    setLeads(listRes.items);
-    setTotal(listRes.total);
-    setStatuses(statusRes.items || statusRes);
-    setLoading(false);
-  };
+  // Debounce timer ref
+  const debounceTimerRef = useRef(null);
 
+  // Fetch data function - memoized with stable dependencies
+  const fetchData = useCallback(async () => {
+    // Prevent concurrent calls
+    if (fetchingRef.current) {
+      return;
+    }
+
+    // Cancel any pending requests
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    fetchingRef.current = true;
+    setLoading(true);
+
+    // Create new AbortController
+    abortControllerRef.current = new AbortController();
+
+    try {
+      const params = {
+        q: query || undefined,
+        statusId: filters.statusId || undefined,
+        ownerId: filters.ownerId || undefined,
+        page,
+        pageSize,
+        sort: "updatedAt:desc",
+      };
+      
+      const [{ data: listRes }, { data: statusRes }] = await Promise.all([
+        crmApi.listLeads(params),
+        crmApi.listStatuses()
+      ]);
+      
+      // Only update state if request wasn't aborted
+      if (!abortControllerRef.current?.signal.aborted) {
+        setLeads(listRes.items || []);
+        setTotal(listRes.total || 0);
+        setStatuses(statusRes.items || statusRes || []);
+      }
+    } catch (error) {
+      // Only log if not aborted
+      if (error.name !== 'AbortError' && error.name !== 'CanceledError' && !error.message?.includes('aborted')) {
+        console.error('Failed to fetch CRM data:', error);
+      }
+    } finally {
+      fetchingRef.current = false;
+      if (!abortControllerRef.current?.signal.aborted) {
+        setLoading(false);
+      }
+    }
+  }, [query, filters.statusId, filters.ownerId, page, pageSize]);
+
+  // Single useEffect with debouncing for search, immediate for filters/pagination
   useEffect(() => {
-    fetchData().catch(console.error);
-  }, [query, filters, page]);
+    // Clear any existing debounce timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    // Cancel any pending requests
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // Debounce search queries, immediate for filters/pagination
+    const delay = query ? 300 : 0;
+    
+    debounceTimerRef.current = setTimeout(() => {
+      fetchData();
+    }, delay);
+
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      fetchingRef.current = false;
+    };
+  }, [query, filters.statusId, filters.ownerId, page, fetchData]);
 
   const onBulkDelete = async () => {
     if (!selected.size) return;
