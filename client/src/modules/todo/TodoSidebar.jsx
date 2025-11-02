@@ -37,13 +37,15 @@ const TodoSidebar = ({
         <div className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-indigo-600 via-fuchsia-500 to-cyan-500 bg-clip-text text-transparent">
           Eterna Tasks
         </div>
-        <button
-          onClick={onCreateCategory}
-          className="inline-flex items-center justify-center p-2 rounded-xl bg-white/70 border border-white/50 hover:bg-white transition shadow-sm"
-          title="Create category"
-        >
-          <PlusIcon className="w-5 h-5 text-slate-700" />
-        </button>
+        {onCreateCategory && (
+          <button
+            onClick={onCreateCategory}
+            className="inline-flex items-center justify-center p-2 rounded-xl bg-white/70 border border-white/50 hover:bg-white transition shadow-sm"
+            title="Create category"
+          >
+            <PlusIcon className="w-5 h-5 text-slate-700" />
+          </button>
+        )}
       </div>
 
       {/* Search */}

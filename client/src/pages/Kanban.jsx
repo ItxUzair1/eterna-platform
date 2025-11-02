@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { usePermission } from '../modules/auth/usePermission';
 import {
   listBoards, createBoard, getBoardFull,
   createColumn, reorderColumns, updateColumn, deleteColumn,
@@ -89,7 +90,8 @@ function Column({
   onAddCard,
   onEditColumn,
   onDeleteColumn,
-  onOpenCard
+  onOpenCard,
+  canWrite = true
 }) {
   return (
     <div
@@ -101,19 +103,25 @@ function Column({
     >
       {/* Header - sticky inside column */}
       <div className="sticky top-0 z-10 -mx-3 px-3 pt-3 pb-2 bg-white/90 backdrop-blur border-b border-slate-200 flex items-center justify-between">
-        <input
-          className="flex-1 font-semibold text-slate-800 bg-transparent outline-none px-1 rounded
-                     hover:bg-slate-50 focus:ring-2 focus:ring-indigo-300"
-          defaultValue={column.title}
-          onBlur={(e)=> onEditColumn(column.id, { title: e.target.value })}
-        />
-        <button
-          onClick={()=> onDeleteColumn(column.id)}
-          className="ml-2 inline-flex items-center text-xs px-2 py-1 rounded-md text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200"
-          title="Delete column"
-        >
-          Delete
-        </button>
+        {canWrite ? (
+          <>
+            <input
+              className="flex-1 font-semibold text-slate-800 bg-transparent outline-none px-1 rounded
+                         hover:bg-slate-50 focus:ring-2 focus:ring-indigo-300"
+              defaultValue={column.title}
+              onBlur={(e)=> onEditColumn?.(column.id, { title: e.target.value })}
+            />
+            <button
+              onClick={()=> onDeleteColumn?.(column.id)}
+              className="ml-2 inline-flex items-center text-xs px-2 py-1 rounded-md text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200"
+              title="Delete column"
+            >
+              Delete
+            </button>
+          </>
+        ) : (
+          <span className="flex-1 font-semibold text-slate-800">{column.title}</span>
+        )}
       </div>
 
       {/* Droppable container for cards */}
@@ -130,21 +138,23 @@ function Column({
       </SortableColumnShell>
 
       {/* Column footer action */}
-      <div className="px-3 pb-3">
-        <button
-          onClick={()=> onAddCard(column.id)}
-          className="w-full rounded-xl py-2 text-sm font-semibold
-                     text-indigo-700 bg-indigo-50 hover:bg-indigo-100
-                     border border-indigo-200 shadow-sm active:scale-[.99] transition"
-        >
-          + Add card
-        </button>
-      </div>
+      {canWrite && onAddCard && (
+        <div className="px-3 pb-3">
+          <button
+            onClick={()=> onAddCard(column.id)}
+            className="w-full rounded-xl py-2 text-sm font-semibold
+                       text-indigo-700 bg-indigo-50 hover:bg-indigo-100
+                       border border-indigo-200 shadow-sm active:scale-[.99] transition"
+          >
+            + Add card
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 // ---------- Card Modal (scroll constrained) ----------
-function CardModal({ open, onClose, card, setCardState, onSave, onDelete, onAttach, comments, onAddComment }) {
+function CardModal({ open, onClose, card, setCardState, onSave, onDelete, onAttach, comments, onAddComment, canWrite = true }) {
   if (!open || !card) return null;
 
   return (
@@ -152,13 +162,17 @@ function CardModal({ open, onClose, card, setCardState, onSave, onDelete, onAtta
       <div className="bg-white/95 backdrop-blur w-full max-w-2xl max-h-[90vh] rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
         {/* Header */}
         <div className="sticky top-0 z-10 bg-white/95 backdrop-blur p-4 border-b border-slate-200 shadow-sm flex items-center gap-3">
-          <input
-            className="flex-1 text-xl font-semibold text-slate-800 bg-transparent outline-none
-                       px-2 py-1 rounded-md focus:ring-2 focus:ring-indigo-300"
-            value={card.title || ''}
-            onChange={(e)=> setCardState(prev => ({ ...prev, title: e.target.value }))}
-            placeholder="Card title"
-          />
+          {canWrite ? (
+            <input
+              className="flex-1 text-xl font-semibold text-slate-800 bg-transparent outline-none
+                         px-2 py-1 rounded-md focus:ring-2 focus:ring-indigo-300"
+              value={card.title || ''}
+              onChange={(e)=> setCardState(prev => ({ ...prev, title: e.target.value }))}
+              placeholder="Card title"
+            />
+          ) : (
+            <h2 className="flex-1 text-xl font-semibold text-slate-800">{card.title || 'Untitled'}</h2>
+          )}
           <button
             onClick={onClose}
             className="inline-flex items-center justify-center rounded-md px-2.5 py-1.5
@@ -175,50 +189,70 @@ function CardModal({ open, onClose, card, setCardState, onSave, onDelete, onAtta
           {/* Description */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
-            <textarea
-              rows={8}
-              className="w-full border border-slate-300 rounded-xl px-3 py-2 bg-white
-                         focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-y overflow-auto"
-              value={card.description || ''}
-              onChange={(e)=> setCardState(prev => ({ ...prev, description: e.target.value }))}
-              placeholder="Add a detailed description..."
-            />
+            {canWrite ? (
+              <textarea
+                rows={8}
+                className="w-full border border-slate-300 rounded-xl px-3 py-2 bg-white
+                           focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-y overflow-auto"
+                value={card.description || ''}
+                onChange={(e)=> setCardState(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Add a detailed description..."
+              />
+            ) : (
+              <div className="w-full border border-slate-200 rounded-xl px-3 py-2 bg-slate-50 text-slate-700 min-h-[8rem]">
+                {card.description || 'No description'}
+              </div>
+            )}
           </div>
 
           {/* Two-column inputs */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Deadline</label>
-              <input
-                type="date"
-                className="w-full border border-slate-300 rounded-xl px-3 py-2 bg-white
-                           focus:outline-none focus:ring-2 focus:ring-indigo-300"
-                value={card.deadlineDate ? new Date(card.deadlineDate).toISOString().slice(0,10) : ''}
-                onChange={(e)=> setCardState(prev => ({ ...prev, deadlineDate: e.target.value ? new Date(e.target.value).toISOString() : null }))}
-              />
+              {canWrite ? (
+                <input
+                  type="date"
+                  className="w-full border border-slate-300 rounded-xl px-3 py-2 bg-white
+                             focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                  value={card.deadlineDate ? new Date(card.deadlineDate).toISOString().slice(0,10) : ''}
+                  onChange={(e)=> setCardState(prev => ({ ...prev, deadlineDate: e.target.value ? new Date(e.target.value).toISOString() : null }))}
+                />
+              ) : (
+                <div className="w-full border border-slate-200 rounded-xl px-3 py-2 bg-slate-50 text-slate-700">
+                  {card.deadlineDate ? new Date(card.deadlineDate).toLocaleDateString() : 'No deadline'}
+                </div>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Assignee (userId)</label>
-              <input
-                type="number"
-                className="w-full border border-slate-300 rounded-xl px-3 py-2 bg-white
-                           focus:outline-none focus:ring-2 focus:ring-indigo-300"
-                value={card.assigneeId || ''}
-                onChange={(e)=> setCardState(prev => ({ ...prev, assigneeId: e.target.value ? Number(e.target.value) : null }))}
-                placeholder="Enter user id"
-              />
+              {canWrite ? (
+                <input
+                  type="number"
+                  className="w-full border border-slate-300 rounded-xl px-3 py-2 bg-white
+                             focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                  value={card.assigneeId || ''}
+                  onChange={(e)=> setCardState(prev => ({ ...prev, assigneeId: e.target.value ? Number(e.target.value) : null }))}
+                  placeholder="Enter user id"
+                />
+              ) : (
+                <div className="w-full border border-slate-200 rounded-xl px-3 py-2 bg-slate-50 text-slate-700">
+                  {card.assigneeId || 'Unassigned'}
+                </div>
+              )}
             </div>
           </div>
 
           {/* Attachments */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Attachments</label>
-            <input
-              type="file"
-              onChange={(e)=> e.target.files?.[0] && onAttach(e.target.files[0])}
-              className="text-sm file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0
-                         file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-            />
+            {canWrite && onAttach && (
+              <input
+                type="file"
+                onChange={(e)=> e.target.files?.[0] && onAttach(e.target.files[0])}
+                className="text-sm file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0
+                           file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+              />
+            )}
             {card.attachments?.length > 0 && (
               <div className="mt-2 text-sm text-slate-600">
                 {card.attachments.length} file(s) linked
@@ -243,26 +277,32 @@ function CardModal({ open, onClose, card, setCardState, onSave, onDelete, onAtta
               )}
             </ul>
 
-            <AddComment onAdd={onAddComment} />
+            {canWrite && <AddComment onAdd={onAddComment} />}
           </div>
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 z-10 bg-white/95 backdrop-blur p-4 border-t border-slate-200 shadow-sm flex items-center justify-between">
-          <button
-            className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 border border-rose-200
-                       rounded-lg px-3 py-2 text-sm font-semibold transition"
-            onClick={onDelete}
-          >
-            Delete card
-          </button>
-          <button
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2 rounded-xl shadow-sm"
-            onClick={onSave}
-          >
-            Save changes
-          </button>
-        </div>
+        {canWrite && (onDelete || onSave) && (
+          <div className="sticky bottom-0 z-10 bg-white/95 backdrop-blur p-4 border-t border-slate-200 shadow-sm flex items-center justify-between">
+            {onDelete && (
+              <button
+                className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 border border-rose-200
+                           rounded-lg px-3 py-2 text-sm font-semibold transition"
+                onClick={onDelete}
+              >
+                Delete card
+              </button>
+            )}
+            {onSave && (
+              <button
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2 rounded-xl shadow-sm"
+                onClick={onSave}
+              >
+                Save changes
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -291,6 +331,7 @@ function AddComment({ onAdd }) {
 
 // ---------- Main Page ----------
 export default function Kanban() {
+  const { allowed: canWrite } = usePermission("kanban", "write");
   // Boards
   const [boards, setBoards] = useState([]);
   const [activeBoardId, setActiveBoardId] = useState(null);
@@ -551,15 +592,17 @@ return (
               value={newBoardTitle}
               onChange={(e)=> setNewBoardTitle(e.target.value)}
             />
-            <button
-              onClick={handleCreateBoard}
-              className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm active:scale-[.99] transition"
-            >
-              <span>➕</span> Create Board
-            </button>
+            {canWrite && (
+              <button
+                onClick={handleCreateBoard}
+                className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm active:scale-[.99] transition"
+              >
+                <span>➕</span> Create Board
+              </button>
+            )}
           </div>
 
-          {activeBoardId && (
+          {activeBoardId && canWrite && (
             <button
               onClick={handleAddColumn}
               className="ml-auto inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 shadow-sm active:scale-[.99] transition"
@@ -601,10 +644,11 @@ return (
                           <Column
                             column={col}
                             cards={(cardsByColumn[col.id] || [])}
-                            onAddCard={handleAddCard}
-                            onEditColumn={handleEditColumn}
-                            onDeleteColumn={handleDeleteColumn}
+                            onAddCard={canWrite ? handleAddCard : undefined}
+                            onEditColumn={canWrite ? handleEditColumn : undefined}
+                            onDeleteColumn={canWrite ? handleDeleteColumn : undefined}
                             onOpenCard={openCard}
+                            canWrite={canWrite}
                           />
                         </div>
                       ))}
@@ -623,10 +667,11 @@ return (
       onClose={closeModal}
       card={activeCard}
       setCardState={setActiveCard}
-      onSave={saveCard}
-      onDelete={deleteActiveCard}
-      onAttach={attachToActiveCard}
+      onSave={canWrite ? saveCard : undefined}
+      onDelete={canWrite ? deleteActiveCard : undefined}
+      onAttach={canWrite ? attachToActiveCard : undefined}
       comments={activeCardComments}
+      canWrite={canWrite}
       onAddComment={addCommentToActiveCard}
     />
   </div>

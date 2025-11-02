@@ -8,11 +8,13 @@ import ResetPassword from "./pages/ResetPassword";
 import AcceptInvite from "./pages/AcceptInvite";
 import SettingsAccount from "./pages/SettingsAccount";
 import EmailSettings from "./pages/EmailSettings";
+import Integrations from "./pages/Integrations";
 import DashboardLayout from "./layouts/DashboardLayout";
 import Email from "./pages/Email";
 import Kanban from "./pages/Kanban";
 import Todo from "./pages/Todo";
 import CRM from "./pages/CRM";
+import MoneyManagement from "./pages/MoneyManagement";
 import ImageConverter from './pages/ImageConverter';
 import PrivateRoute from "./modules/auth/PrivateRoute"
 import PermissionsMatrix from "./pages/PermissionMatrix";
@@ -41,9 +43,11 @@ export default function App() {
           <Route path="kanban" element={<Kanban />} />
           <Route path="todo" element={<Todo />} />
           <Route path="crm" element={<CRM />} />
+          <Route path="money" element={<MoneyManagement />} />
           <Route path="image-converter" element={<ImageConverter />} />
           <Route path="account-settings" element={<SettingsAccount />} />
           <Route path="email-settings" element={<EmailSettings />} />
+          <Route path="integrations" element={<Integrations />} />
         </Route>
 
         {/* Admin pages (UI gating handled by Sidebar + withPermission) */}

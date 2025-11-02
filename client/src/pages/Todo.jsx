@@ -7,8 +7,10 @@ import CategoryModal from '../modules/todo/CategoryModal';
 import { todoService } from '../services/todoService';
 import { toast } from 'react-hot-toast';
 import { Bars3Icon, PlusIcon } from '@heroicons/react/24/outline';
+import { usePermission } from '../modules/auth/usePermission';
 
 const Todo = () => {
+  const { allowed: canWrite } = usePermission("todos", "write");
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
@@ -64,9 +66,11 @@ const Todo = () => {
             <Bars3Icon className="w-6 h-6 text-slate-700" />
           </button>
           <div className="text-lg font-bold text-slate-900">Tasks</div>
-          <button onClick={openNewTask} className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-indigo-600 text-white">
-            <PlusIcon className="w-5 h-5" /> New
-          </button>
+          {canWrite && (
+            <button onClick={openNewTask} className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-indigo-600 text-white">
+              <PlusIcon className="w-5 h-5" /> New
+            </button>
+          )}
         </div>
       </header>
 
@@ -79,7 +83,7 @@ const Todo = () => {
             selectedStatus={selectedStatus}
             onCategorySelect={setSelectedCategory}
             onStatusSelect={setSelectedStatus}
-            onCreateCategory={() => setShowCategoryModal(true)}
+            onCreateCategory={canWrite ? () => setShowCategoryModal(true) : undefined}
             todoCount={Array.isArray(todos) ? todos.length : 0}
           />
         </div>
@@ -95,7 +99,7 @@ const Todo = () => {
                 selectedStatus={selectedStatus}
                 onCategorySelect={(v) => { setSelectedCategory(v); setSidebarOpen(false); }}
                 onStatusSelect={(v) => { setSelectedStatus(v); setSidebarOpen(false); }}
-                onCreateCategory={() => { setShowCategoryModal(true); setSidebarOpen(false); }}
+                onCreateCategory={canWrite ? () => { setShowCategoryModal(true); setSidebarOpen(false); } : undefined}
                 todoCount={Array.isArray(todos) ? todos.length : 0}
               />
             </div>
@@ -113,62 +117,64 @@ const Todo = () => {
                   {Array.isArray(todos) ? todos.length : 0} {todos?.length === 1 ? 'task' : 'tasks'}
                 </p>
               </div>
-              <button id="newTaskBtn" onClick={openNewTask} className="btn btn--primary px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-500">
-                Create New Task
-              </button>
+              {canWrite && (
+                <button id="newTaskBtn" onClick={openNewTask} className="btn btn--primary px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-500">
+                  Create New Task
+                </button>
+              )}
             </div>
             {/* Bulk actions bar */}
-{Array.isArray(selectedTodos) && selectedTodos.length > 0 && (
-  <div className="sticky top-2 z-20 mb-4 rounded-2xl border border-indigo-100 bg-indigo-50/70 backdrop-blur px-3 sm:px-4 py-2.5 shadow-sm">
-    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-      <span className="text-sm font-medium text-indigo-800">
-        {selectedTodos.length} selected
-      </span>
+            {canWrite && Array.isArray(selectedTodos) && selectedTodos.length > 0 && (
+              <div className="sticky top-2 z-20 mb-4 rounded-2xl border border-indigo-100 bg-indigo-50/70 backdrop-blur px-3 sm:px-4 py-2.5 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                  <span className="text-sm font-medium text-indigo-800">
+                    {selectedTodos.length} selected
+                  </span>
 
-      <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-        <button
-          onClick={async () => {
-            try {
-              await todoService.bulkUpdateStatus(selectedTodos, 'Completed');
-              toast.success('Tasks marked as completed');
-              setSelectedTodos([]);
-              fetchTodos();
-            } catch {
-              toast.error('Failed to update tasks');
-            }
-          }}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-500"
-        >
-          Mark Complete
-        </button>
+                  <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                    <button
+                      onClick={async () => {
+                        try {
+                          await todoService.bulkUpdateStatus(selectedTodos, 'Completed');
+                          toast.success('Tasks marked as completed');
+                          setSelectedTodos([]);
+                          fetchTodos();
+                        } catch {
+                          toast.error('Failed to update tasks');
+                        }
+                      }}
+                      className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-500"
+                    >
+                      Mark Complete
+                    </button>
 
-        <button
-          onClick={async () => {
-            if (!window.confirm(`Delete ${selectedTodos.length} selected tasks?`)) return;
-            try {
-              await todoService.bulkDelete(selectedTodos);
-              toast.success('Tasks deleted successfully');
-              setSelectedTodos([]);
-              fetchTodos();
-            } catch {
-              toast.error('Failed to delete tasks');
-            }
-          }}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-rose-200 text-rose-700 hover:bg-rose-50"
-        >
-          Delete Selected
-        </button>
-      </div>
+                    <button
+                      onClick={async () => {
+                        if (!window.confirm(`Delete ${selectedTodos.length} selected tasks?`)) return;
+                        try {
+                          await todoService.bulkDelete(selectedTodos);
+                          toast.success('Tasks deleted successfully');
+                          setSelectedTodos([]);
+                          fetchTodos();
+                        } catch {
+                          toast.error('Failed to delete tasks');
+                        }
+                      }}
+                      className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-rose-200 text-rose-700 hover:bg-rose-50"
+                    >
+                      Delete Selected
+                    </button>
+                  </div>
 
-      <button
-        onClick={() => setSelectedTodos([])}
-        className="sm:ml-auto inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50"
-      >
-        Clear
-      </button>
-    </div>
-  </div>
-)}
+                  <button
+                    onClick={() => setSelectedTodos([])}
+                    className="sm:ml-auto inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50"
+                  >
+                    Clear Selection
+                  </button>
+                </div>
+              </div>
+            )}
 
             
 
@@ -177,19 +183,19 @@ const Todo = () => {
               categories={categories}
               loading={loading}
               selectedTodos={selectedTodos}
-              onSelectTodo={(id) =>
+              onSelectTodo={canWrite ? (id) =>
                 setSelectedTodos((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]))
-              }
-              onSelectAll={() =>
+              : undefined}
+              onSelectAll={canWrite ? () =>
                 setSelectedTodos((p) => (p.length === todos.length ? [] : todos.map((t) => t.id)))
-              }
-              onEdit={(todo) => { setEditingTodo(todo); setShowTodoModal(true); }}
-              onDelete={async (id) => {
+              : undefined}
+              onEdit={canWrite ? (todo) => { setEditingTodo(todo); setShowTodoModal(true); } : undefined}
+              onDelete={canWrite ? async (id) => {
                 try { await todoService.deleteTodo(id); toast.success('Task deleted'); fetchTodos(); } catch { toast.error('Delete failed'); }
-              }}
-              onStatusChange={async (id, status) => {
+              } : undefined}
+              onStatusChange={canWrite ? async (id, status) => {
                 try { await todoService.updateTodo(id, { status }); toast.success('Status updated'); fetchTodos(); } catch { toast.error('Update failed'); }
-              }}
+              } : undefined}
             />
           </div>
         </main>

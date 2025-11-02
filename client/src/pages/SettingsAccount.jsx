@@ -1,5 +1,6 @@
 // client/src/pages/SettingsAccount.jsx
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   getMe,
   updateProfile,
@@ -8,6 +9,7 @@ import {
 } from "../services/authService";
 
 export default function SettingsAccount() {
+  const navigate = useNavigate();
   const [me, setMe] = useState(null);
   const [toast, setToast] = useState({ type: "", text: "" });
   const [busy, setBusy] = useState(false);
@@ -188,9 +190,17 @@ export default function SettingsAccount() {
               <span>Make changes and click save.</span>
             )}
           </div>
-          <a href="/enable-2fa">
-            <Button tone="subtle">Enable WhatsApp 2FA</Button>
-          </a>
+          <div className="flex gap-2">
+            <button
+              onClick={() => navigate("/dashboard/integrations")}
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-slate-100 to-slate-200 hover:from-slate-200 hover:to-slate-300 text-slate-800 font-medium shadow-sm hover:shadow-md"
+            >
+              Integrations
+            </button>
+            <a href="/enable-2fa">
+              <Button tone="subtle">Enable WhatsApp 2FA</Button>
+            </a>
+          </div>
         </div>
 
         {/* Content grid */}

@@ -17,8 +17,22 @@ async function getUserMatrix({ tenantId, userId }) {
   const team = teamIds.length ? await prisma.teamPermission.findMany({ where: { teamId: { in: teamIds } } }) : [];
   const user = await prisma.userPermission.findMany({ where: { userId } });
 
-  const grants = new Map(defaults.map(p => [`${p.appKey}:${p.scopeKey}`, true]));
-  team.forEach(p => { if (p.enabled) grants.set(`${p.appKey}:${p.scopeKey}`, true); });
+  // If user is in teams with permissions, use ONLY team permissions (restrictive)
+  // Otherwise, use tenant defaults
+  const hasTeamPermissions = team.length > 0;
+  const grants = new Map();
+  
+  if (hasTeamPermissions) {
+    // Start with empty set, only add team permissions
+    team.forEach(p => { 
+      if (p.enabled) grants.set(`${p.appKey}:${p.scopeKey}`, true); 
+    });
+  } else {
+    // Start with tenant defaults
+    defaults.forEach(p => grants.set(`${p.appKey}:${p.scopeKey}`, true));
+  }
+  
+  // Apply user-specific overrides (can add or remove)
   user.forEach(p => { const k = `${p.appKey}:${p.scopeKey}`; if (p.enabled) grants.set(k, true); else grants.delete(k); });
 
   const effRows = [...grants.keys()].map(k => { const [appKey, scopeKey] = k.split(':'); return { appKey, scopeKey, enabled: true }; });

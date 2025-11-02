@@ -1,7 +1,7 @@
 // src/components/Sidebar.jsx
 import { NavLink, useNavigate } from "react-router-dom";
 import { useContext, useEffect, useMemo, useRef } from "react";
-import { ClipboardList, Image, Menu, LogOut, Mail, Layout, Shield } from "lucide-react";
+import { ClipboardList, Image, Menu, LogOut, Mail, Layout, Shield, DollarSign } from "lucide-react";
 import { AuthContext } from "../context/AuthContext";
 
 const ALL_ITEMS = [
@@ -10,6 +10,7 @@ const ALL_ITEMS = [
   { to: "/dashboard/email", key: "email", label: "Email", icon: <Mail className="w-5 h-5" /> },
   { to: "/dashboard/kanban", key: "kanban", label: "Kanban", icon: <Layout className="w-5 h-5" /> },
   { to: "/dashboard/crm", key: "crm", label: "CRM", icon: <Layout className="w-5 h-5" /> },
+  { to: "/dashboard/money", key: "money", label: "Money Management", icon: <DollarSign className="w-5 h-5" /> },
   // Admin appears only if enabled via RBAC (key: 'admin')
   { to: "/admin", key: "admin", label: "Admin", icon: <Shield className="w-5 h-5" /> }
 ];

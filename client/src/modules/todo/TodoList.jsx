@@ -32,13 +32,15 @@ const TodoList = ({ todos, categories, loading, selectedTodos, onSelectTodo, onS
         ))}
       </div>
 
-      <div className="flex items-center gap-3 mb-4">
-        <input type="checkbox" checked={selectedTodos.length === todos.length && todos.length > 0} onChange={onSelectAll} className="w-4 h-4 rounded border-slate-300" />
-        <span className="text-sm text-slate-600">Select All</span>
-        <span className="text-xs text-slate-400 ml-auto">
-          {filtered.length} {filtered.length === 1 ? 'task' : 'tasks'}
-        </span>
-      </div>
+      {(onEdit || onDelete) && (
+        <div className="flex items-center gap-3 mb-4">
+          <input type="checkbox" checked={selectedTodos.length === todos.length && todos.length > 0} onChange={onSelectAll} className="w-4 h-4 rounded border-slate-300" />
+          <span className="text-sm text-slate-600">Select All</span>
+          <span className="text-xs text-slate-400 ml-auto">
+            {filtered.length} {filtered.length === 1 ? 'task' : 'tasks'}
+          </span>
+        </div>
+      )}
 
       {filtered.length === 0 ? (
         <div className="text-center py-20">
@@ -53,11 +55,11 @@ const TodoList = ({ todos, categories, loading, selectedTodos, onSelectTodo, onS
               key={todo.id}
               todo={todo}
               category={categories.find((c) => c.id === todo.categoryId)}
-              isSelected={selectedTodos.includes(todo.id)}
-              onSelect={() => onSelectTodo(todo.id)}
-              onEdit={() => onEdit(todo)}
-              onDelete={() => onDelete(todo.id)}
-              onStatusChange={(status) => onStatusChange(todo.id, status)}
+              isSelected={onSelectTodo ? selectedTodos.includes(todo.id) : false}
+              onSelect={onSelectTodo ? () => onSelectTodo(todo.id) : undefined}
+              onEdit={onEdit ? () => onEdit(todo) : undefined}
+              onDelete={onDelete ? () => onDelete(todo.id) : undefined}
+              onStatusChange={onStatusChange ? (status) => onStatusChange(todo.id, status) : undefined}
             />
           ))}
         </div>

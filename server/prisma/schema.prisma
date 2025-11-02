@@ -41,6 +41,7 @@ model Tenant {
   subscriptions           Subscription[]
   invoices                Invoice[]
   storageUsage            StorageUsage?
+  googleSheetsConnections GoogleSheetsConnection[]
 
   // Back-relations for auth flows
   emailVerifications EmailVerification[]
@@ -109,6 +110,7 @@ model User {
   createdBoards           Board[]
   userPermissions         UserPermission[]
   refreshTokens           RefreshToken[]
+  googleSheetsConnections GoogleSheetsConnection[]
 
   // Back-relations for auth flows
   emailVerifications EmailVerification[]
@@ -825,4 +827,32 @@ model StorageUsage {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@map("storage_usage")
+}
+
+// =============================================================
+// ===============  GOOGLE SHEETS INTEGRATION ==================
+// =============================================================
+
+model GoogleSheetsConnection {
+  id            Int      @id @default(autoincrement())
+  tenantId      Int
+  userId        Int      // User who connected it (Entrepreneur uses personal API key)
+  name          String   // Friendly name for the connection
+  apiKey        String?  // API key (encrypted) - for personal use
+  accessToken   String?  // OAuth access token (encrypted) - for Enterprise
+  refreshToken  String?  // OAuth refresh token (encrypted) - for Enterprise
+  spreadsheetId String?  // Google Sheets spreadsheet ID
+  sheetName     String?  // Specific sheet name within spreadsheet
+  syncDirection String   @default("import") // "import", "export", "bidirectional"
+  fieldMapping  Json?    // Column mapping (JSON: { name: "A", email: "B", ... })
+  lastSyncAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, spreadsheetId])
+  @@index([tenantId])
+  @@map("google_sheets_connections")
 }

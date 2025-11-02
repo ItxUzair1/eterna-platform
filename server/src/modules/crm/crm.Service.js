@@ -167,32 +167,85 @@ async function deleteLeadFile(ctx, leadId, leadFileId) {
 }
 
 async function importCsv(ctx, req) {
+  ensureScope(ctx, "crm", "write");
+  
+  const mapping = JSON.parse(req.body.mapping || "{}");
+
+  if (!req.file?.path) {
+    throw new Error("No CSV file uploaded");
+  }
+
+  if (!mapping.name) {
+    throw new Error("Name column mapping is required");
+  }
+
+  // Get all statuses for lookup (once, before processing)
+  const statuses = await prisma.leadStatus.findMany({
+    where: { tenantId: ctx.tenantId },
+    select: { id: true, value: true },
+  });
+  const statusMap = new Map(statuses.map((s) => [s.value.toLowerCase(), s.id]));
+
   return new Promise((resolve, reject) => {
     const results = [];
-    const mapping = JSON.parse(req.body.mapping || "{}");
-
-    if (!req.file?.path) {
-      return reject(new Error("No CSV file uploaded"));
-    }
+    const errors = [];
+    let rowIndex = 0;
 
     fs.createReadStream(req.file.path)
       .pipe(csv())
       .on("data", (data) => {
+        rowIndex++;
+        const name = (data[mapping.name] || "").trim();
+        
+        // Validate required field
+        if (!name) {
+          errors.push({ row: rowIndex + 1, field: "name", message: "Name is required" });
+          return;
+        }
+
+        // Validate email if provided
+        if (mapping.email && data[mapping.email]) {
+          const email = data[mapping.email].trim();
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (email && !emailRegex.test(email)) {
+            errors.push({ row: rowIndex + 1, field: "email", message: "Invalid email format" });
+          }
+        }
+
+        // Lookup status if provided
+        let statusId = null;
+        if (mapping.status && data[mapping.status]) {
+          const statusValue = data[mapping.status].trim().toLowerCase();
+          statusId = statusMap.get(statusValue) || null;
+        }
+
         const lead = {
-          tenantId: ctx.tenantId, // assuming tenant info from auth middleware
-          name: data[mapping.name],
-          email: data[mapping.email],
-          phone: data[mapping.phone],
-          company: data[mapping.company],
-          tags: data[mapping.tags],
+          tenantId: ctx.tenantId,
+          name,
+          email: (data[mapping.email] || "").trim() || null,
+          phone: (data[mapping.phone] || "").trim() || null,
+          company: (data[mapping.company] || "").trim() || null,
+          tags: (data[mapping.tags] || "").trim() || null,
+          statusId,
         };
         results.push(lead);
       })
       .on("end", async () => {
         try {
-          await prisma.lead.createMany({ data: results });
-          console.log(`Imported ${results.length} leads`);
-          resolve(results);
+          // Only create valid leads
+          const validLeads = results.filter((lead) => lead.name);
+          if (validLeads.length > 0) {
+            await prisma.lead.createMany({ 
+              data: validLeads,
+              skipDuplicates: true // Skip duplicates based on unique constraints
+            });
+            await audit(ctx, "lead.import", "Lead", null, { count: validLeads.length });
+          }
+          resolve({
+            imported: validLeads.length,
+            total: rowIndex,
+            errors,
+          });
         } catch (err) {
           reject(err);
         }
@@ -219,7 +272,17 @@ function sanitizeLead(ctx, payload, creating = true) {
 
 function toOrder(sort) {
   const [field, dir] = (sort || "updatedAt:desc").split(":");
-  return { [field]: dir?.toLowerCase() === "asc" ? "asc" : "desc" };
+  const direction = dir?.toLowerCase() === "asc" ? "asc" : "desc";
+  
+  // Handle nested sorting for status and owner
+  if (field === "statusId") {
+    return { status: { value: direction } };
+  }
+  if (field === "ownerId") {
+    return { owner: { username: direction } };
+  }
+  
+  return { [field]: direction };
 }
 
 module.exports = {

@@ -21,8 +21,24 @@ async function resolvePermissions({ tenantId, userId }) {
   const userPerms = await prisma.userPermission.findMany({ where: { userId } });
   console.log(`[resolvePermissions] Found ${userPerms.length} user perms`);
 
-  const merged = new Map(defaultPerms.map(p => [`${p.appKey}:${p.scopeKey}`, true]));
-  teamPerms.forEach(p => { if (p.enabled) merged.set(`${p.appKey}:${p.scopeKey}`, true); });
+  // If user is in teams with permissions, use ONLY team permissions (restrictive)
+  // Otherwise, use tenant defaults
+  const hasTeamPermissions = teamPerms.length > 0;
+  const merged = new Map();
+  
+  if (hasTeamPermissions) {
+    // Start with empty set, only add team permissions
+    teamPerms.forEach(p => { 
+      if (p.enabled) merged.set(`${p.appKey}:${p.scopeKey}`, true); 
+    });
+    console.log(`[resolvePermissions] Using team permissions (restrictive mode): ${merged.size} permissions`);
+  } else {
+    // Start with tenant defaults
+    defaultPerms.forEach(p => merged.set(`${p.appKey}:${p.scopeKey}`, true));
+    console.log(`[resolvePermissions] Using tenant defaults: ${merged.size} permissions`);
+  }
+  
+  // Apply user-specific overrides (can add or remove)
   userPerms.forEach(p => {
     const k = `${p.appKey}:${p.scopeKey}`;
     if (p.enabled) merged.set(k, true); else merged.delete(k);

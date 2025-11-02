@@ -34,12 +34,14 @@ const TodoCard = ({ todo, category, isSelected, onSelect, onEdit, onDelete, onSt
 
       {/* Header */}
       <div className="flex items-start gap-3">
-        <input
-          type="checkbox"
-          checked={isSelected}
-          onChange={onSelect}
-          className="mt-1.5 w-4 h-4 rounded border-slate-300 shrink-0"
-        />
+        {onSelect && (
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={onSelect}
+            className="mt-1.5 w-4 h-4 rounded border-slate-300 shrink-0"
+          />
+        )}
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
             <h3 className="text-lg font-semibold text-slate-900 leading-tight truncate">{todo.title}</h3>
@@ -87,42 +89,54 @@ const TodoCard = ({ todo, category, isSelected, onSelect, onEdit, onDelete, onSt
           </div>
 
           {/* Footer: fully contained, wraps on small screens */}
-          <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-              <button
-                onClick={onEdit}
-                className="shrink-0 inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-700 transition"
-                title="Edit"
-              >
-                <PencilSquareIcon className="w-4 h-4" />
-                Edit
-              </button>
+          {(onEdit || onDelete || onStatusChange) && (
+            <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+              {(onEdit || onDelete) && (
+                <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                  {onEdit && (
+                    <button
+                      onClick={onEdit}
+                      className="shrink-0 inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-700 transition"
+                      title="Edit"
+                    >
+                      <PencilSquareIcon className="w-4 h-4" />
+                      Edit
+                    </button>
+                  )}
 
-              <button
-                onClick={onDelete}
-                className="shrink-0 inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-rose-50 hover:border-rose-200 hover:text-rose-700 transition"
-                title="Delete"
-              >
-                <TrashIcon className="w-4 h-4" />
-                Delete
-              </button>
+                  {onDelete && (
+                    <button
+                      onClick={onDelete}
+                      className="shrink-0 inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-rose-50 hover:border-rose-200 hover:text-rose-700 transition"
+                      title="Delete"
+                    >
+                      <TrashIcon className="w-4 h-4" />
+                      Delete
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {onStatusChange && (
+                <>
+                  <div className="hidden sm:block sm:flex-1" />
+
+                  {/* Constrained select to avoid overflow */}
+                  <div className="min-w-0">
+                    <select
+                      value={todo.status}
+                      onChange={(e) => onStatusChange(e.target.value)}
+                      className="block w-full sm:w-auto max-w-full text-xs px-3 py-2 rounded-xl bg-white border border-slate-200 focus:ring-2 focus:ring-indigo-300"
+                    >
+                      {Object.keys(STATUS_COLORS).map((k) => (
+                        <option key={k} value={k}>{k}</option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
             </div>
-
-            <div className="hidden sm:block sm:flex-1" />
-
-            {/* Constrained select to avoid overflow */}
-            <div className="min-w-0">
-              <select
-                value={todo.status}
-                onChange={(e) => onStatusChange(e.target.value)}
-                className="block w-full sm:w-auto max-w-full text-xs px-3 py-2 rounded-xl bg-white border border-slate-200 focus:ring-2 focus:ring-indigo-300"
-              >
-                {Object.keys(STATUS_COLORS).map((k) => (
-                  <option key={k} value={k}>{k}</option>
-                ))}
-              </select>
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

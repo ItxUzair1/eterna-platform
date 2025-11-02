@@ -9,19 +9,25 @@ const { encrypt, decrypt } = require('../../utils/encryption');
 // Build transporter per-tenant
 async function getTransporter(account) {
   let password;
-  try {
-    password = decrypt(account.encryptedSecret);
-  } catch (decryptError) {
-    // If decryption fails, it might be plain text (legacy) or wrong key
-    // Check if it looks encrypted (has colon separator)
-    if (account.encryptedSecret && account.encryptedSecret.includes(':')) {
-      // It's encrypted but can't be decrypted - key mismatch
-      const errorMsg = decryptError.message || 'Decryption failed';
-      throw new Error(errorMsg + ' This usually means the encryption key changed. Please update your SMTP account password in Settings to re-encrypt it with the current key.');
-    } else {
-      // Legacy: assume it's plain text (not recommended but backward compatible)
-      console.warn(`Warning: Using plain text password for account ${account.id}. Please update your SMTP account to use encrypted password.`);
-      password = account.encryptedSecret;
+  
+  // If account has no id, it's from environment variables (plain text)
+  if (account.id === null) {
+    password = account.encryptedSecret; // Already plain text from env
+  } else {
+    try {
+      password = decrypt(account.encryptedSecret);
+    } catch (decryptError) {
+      // If decryption fails, it might be plain text (legacy) or wrong key
+      // Check if it looks encrypted (has colon separator)
+      if (account.encryptedSecret && account.encryptedSecret.includes(':')) {
+        // It's encrypted but can't be decrypted - key mismatch
+        const errorMsg = decryptError.message || 'Decryption failed';
+        throw new Error(errorMsg + ' This usually means the encryption key changed. Please update your SMTP account password in Settings to re-encrypt it with the current key.');
+      } else {
+        // Legacy: assume it's plain text (not recommended but backward compatible)
+        console.warn(`Warning: Using plain text password for account ${account.id}. Please update your SMTP account to use encrypted password.`);
+        password = account.encryptedSecret;
+      }
     }
   }
   
@@ -47,6 +53,19 @@ function buildReplyHeaders(parent) {
 async function resolveAccount(tenantId) {
   const account = await prisma.mailAccount.findFirst({ where: { tenantId } });
   if (!account) {
+    // Fallback to environment variables if no account configured
+    if (process.env.SMTP_HOST && process.env.SMTP_USER) {
+      return {
+        id: null,
+        tenantId: null,
+        type: 'SMTP',
+        host: process.env.SMTP_HOST,
+        port: Number(process.env.SMTP_PORT || 587),
+        username: process.env.SMTP_USER,
+        encryptedSecret: process.env.SMTP_PASS, // Plain text for env fallback
+        scope: 'send'
+      };
+    }
     throw new Error('No SMTP configuration found. Please configure your email settings first by going to /dashboard/email-settings');
   }
   return account;
@@ -112,7 +131,9 @@ async function sendEmail({
 
   // Build options; Nodemailer generates Message-ID and protected headers itself
   const mailOptions = {
-    from: account.username,
+    from: account.id === null 
+      ? (process.env.MAIL_FROM || `${account.username} <${account.username}>`)
+      : account.username,
     to, cc, bcc,
     subject,
     text: bodyText,
@@ -156,47 +177,55 @@ async function sendEmail({
   }
 
   // Nodemailer exposes info.messageId for the final generated Message-ID
-  const message = await prisma.mailMessage.create({
-    data: {
-      tenantId,
-      mailAccountId: account.id,
-      folder: 'Sent',
-      from: account.username,
-      to,
-      cc, bcc,
-      subject,
-      bodyHtml,
-      bodyText,
-      messageId: info.messageId || null,
-      inReplyTo: replyHeaders.inReplyTo || null,
-      references: replyHeaders.references || null,
-      headers: mailOptions.headers || {},
-      // Threading: link to root if replying, else self-root
-      threadId: parent?.threadId || parent?.id || null,
-      sentAt: new Date()
-    }
-  });
-
-  if (!message.threadId) {
-    await prisma.mailMessage.update({
-      where: { id: message.id },
-      data: { threadId: message.id }
+  // Only save to database if account is configured (not from env fallback)
+  let message = null;
+  if (account.id !== null) {
+    message = await prisma.mailMessage.create({
+      data: {
+        tenantId,
+        mailAccountId: account.id,
+        folder: 'Sent',
+        from: account.username,
+        to,
+        cc, bcc,
+        subject,
+        bodyHtml,
+        bodyText,
+        messageId: info.messageId || null,
+        inReplyTo: replyHeaders.inReplyTo || null,
+        references: replyHeaders.references || null,
+        headers: mailOptions.headers || {},
+        // Threading: link to root if replying, else self-root
+        threadId: parent?.threadId || parent?.id || null,
+        sentAt: new Date()
+      }
     });
-  }
 
-  if (attachments.length > 0) {
-    for (const file of attachments) {
-      await prisma.mailAttachment.create({
-        data: { messageId: message.id, fileId: file.id }
+    if (!message.threadId) {
+      await prisma.mailMessage.update({
+        where: { id: message.id },
+        data: { threadId: message.id }
       });
     }
+
+    if (attachments.length > 0) {
+      for (const file of attachments) {
+        await prisma.mailAttachment.create({
+          data: { messageId: message.id, fileId: file.id }
+        });
+      }
+    }
   }
 
-  return { message: 'Email sent successfully.', id: message.id };
+  return { message: 'Email sent successfully.', id: message?.id || null };
 }
 
 async function saveDraft({ tenantId, userId, to = '', cc = '', bcc = '', subject = '', bodyHtml = '', bodyText = '', attachments = [] }) {
   const account = await resolveAccount(tenantId);
+  // Drafts require a configured account (not env fallback)
+  if (account.id === null) {
+    throw new Error('No SMTP configuration found. Please configure your email settings first by going to /dashboard/email-settings');
+  }
   const draft = await prisma.mailMessage.create({
     data: {
       tenantId,

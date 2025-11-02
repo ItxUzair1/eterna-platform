@@ -5,7 +5,7 @@ const { rbacGuard } = require('../middlewares/rbacGuard');
 const requireEnterprise = require('../middlewares/planGuard');
 const prisma = require('../config/db');
 const { audit } = require('../utils/audit');
-const { sendEmail } = require('../utils/email');
+const { sendEmail } = require('../modules/email/email.service');
 const crypto = require('crypto');
 const { sha256 } = require('../utils/tokens');
 
@@ -213,6 +213,7 @@ router.post('/:teamId/invite', rbacGuard('admin', 'manage'), async (req, res) =>
     
     await sendEmail({
       tenantId: req.context.tenantId,
+      userId: req.context.userId,
       to: email,
       subject: `You're invited to join ${team.name} on ${tenant?.name || 'Eterna'}`,
       bodyHtml: `
