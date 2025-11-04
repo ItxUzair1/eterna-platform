@@ -10,6 +10,10 @@ export const getSentEmails = () => api.get('/email/sent');
 export const getDrafts = () => api.get('/email/drafts');
 export const getTrash = () => api.get('/email/trash');
 
+// Inbox & Spam
+export const getInbox = (params = {}) => api.get('/email/inbox', { params });
+export const syncInbox = (params = {}) => api.post('/email/inbox/sync', null, { params });
+
 export const moveMessage = (id, toFolder) => api.post(`/email/messages/${id}/move`, { toFolder });
 export const restoreMessage = (id) => api.post(`/email/messages/${id}/restore`);
 export const hardDeleteMessage = (id) => api.delete(`/email/messages/${id}`);

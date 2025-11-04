@@ -84,6 +84,16 @@ const rbacGuard = (appKey, ...scopes) => {
         if (req.context) req.context.plan = plan;
       }
       const planLower = (plan || '').toLowerCase().trim();
+
+      // Individual plan: allow all non-admin apps and scopes (read/write). Block admin.
+      if (planLower === 'individual') {
+        if (appKey === 'admin') {
+          console.log('[rbacGuard] REJECTING: Admin not available on Individual plan');
+          return res.status(403).json({ error: 'Admin app not available on Individual plan' });
+        }
+        console.log('[rbacGuard] ALLOWING: Individual plan grants full RW for non-admin apps');
+        return next();
+      }
       if (planLower === 'enterprise' && appKey === 'admin' && !req.context.enabledApps.includes(appKey)) {
         // Check if admin permissions exist in DB
         const existingAdminPerms = await prisma.permission.findMany({

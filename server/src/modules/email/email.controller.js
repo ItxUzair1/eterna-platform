@@ -100,6 +100,28 @@ const hardDeleteMessage = async (req, res) => {
   }
 };
 
+const listInbox = async (req, res) => {
+  try {
+    const limit = Number(req.query.limit || 50);
+    const offset = Number(req.query.offset || 0);
+    const emails = await emailService.listInbox({ tenantId: req.user.tenantId, limit, offset });
+    res.json(emails);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+};
+
+const syncInbox = async (req, res) => {
+  try {
+    const sinceDays = Number(req.query.sinceDays || 7);
+    const max = Number(req.query.max || 200);
+    const result = await emailService.syncInbox({ tenantId: req.user.tenantId, sinceDays, max });
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+};
+
 const listTemplates = async (req, res) => {
   try {
     const templates = await emailService.getEmailTemplates(req.user.tenantId);
@@ -246,5 +268,7 @@ module.exports = {
   updateMailAccount,
   getMailAccount,
   seedDefaultTemplates,
-  uploadAttachment
+  uploadAttachment,
+  listInbox,
+  syncInbox
 };

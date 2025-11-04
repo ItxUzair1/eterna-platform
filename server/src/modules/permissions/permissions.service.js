@@ -12,6 +12,19 @@ function normalize(matrixRows) {
 }
 
 async function getUserMatrix({ tenantId, userId }) {
+  // For Individual plan, grant read/write to all apps by default
+  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { plan: true } });
+  const planLower = (tenant?.plan || '').toLowerCase().trim();
+  if (planLower === 'individual') {
+    const nonAdminApps = APPS.filter(a => a !== 'admin');
+    const matrix = normalize(nonAdminApps.flatMap(a => ([
+      { appKey: a, scopeKey: 'read', enabled: true },
+      { appKey: a, scopeKey: 'write', enabled: true }
+    ])));
+    const enabledApps = [...nonAdminApps];
+    return { matrix, enabledApps };
+  }
+
   const defaults = await prisma.permission.findMany({ where: { tenantId } });
   const teamIds = (await prisma.teamMember.findMany({ where: { userId }, select: { teamId: true } })).map(x => x.teamId);
   const team = teamIds.length ? await prisma.teamPermission.findMany({ where: { teamId: { in: teamIds } } }) : [];

@@ -3,6 +3,9 @@ const nodemailer = require('nodemailer');
 const fs = require('fs');
 const path = require('path');
 const prisma = require('../../config/db');
+const { ImapFlow } = require('imapflow');
+const Spamc = require('spamc');
+const { simpleParser } = require('mailparser');
 const Mustache = require('mustache');
 const { encrypt, decrypt } = require('../../utils/encryption');
 
@@ -305,6 +308,131 @@ async function listByFolder(tenantId, folder) {
   });
 }
 
+async function listInbox({ tenantId, limit = 50, offset = 0 }) {
+  return prisma.mailMessage.findMany({
+    where: { tenantId, folder: { in: ['Inbox', 'Spam'] } },
+    orderBy: { createdAt: 'desc' },
+    skip: offset,
+    take: limit,
+    include: { attachments: { include: { file: true } } }
+  });
+}
+
+async function getImapClient(account) {
+  let password;
+  if (account.id === null) password = account.encryptedSecret; else password = decrypt(account.encryptedSecret);
+  const client = new ImapFlow({
+    host: account.host,
+    port: account.imapPort || 993,
+    secure: true,
+    auth: { user: account.username, pass: password }
+  });
+  await client.connect();
+  return client;
+}
+
+async function spamCheck(rawEmailBuffer) {
+  try {
+    const client = new Spamc({ host: process.env.SPAMD_HOST || '127.0.0.1', port: Number(process.env.SPAMD_PORT || 783) });
+    const result = await client.reportIfspam(rawEmailBuffer);
+    return { isSpam: !!result?.isSpam, score: result?.score ?? null, threshold: result?.threshold ?? null };
+  } catch (e) {
+    console.warn('SpamAssassin check failed, treating as not spam:', e.message);
+    return { isSpam: false, score: null, threshold: null };
+  }
+}
+
+async function upsertInboundMessage({ tenantId, accountId, parsed, raw, spam }) {
+  const folder = spam?.isSpam ? 'Spam' : 'Inbox';
+  const existing = parsed.messageId
+    ? await prisma.mailMessage.findFirst({ where: { tenantId, messageId: parsed.messageId } })
+    : null;
+  if (existing) return existing;
+  const created = await prisma.mailMessage.create({
+    data: {
+      tenantId,
+      mailAccountId: accountId,
+      folder,
+      from: parsed.from?.text || parsed.from?.value?.map(v => v.address).join(',') || '',
+      to: parsed.to?.text || parsed.to?.value?.map(v => v.address).join(',') || '',
+      cc: parsed.cc?.text || '',
+      bcc: '',
+      subject: parsed.subject || '',
+      bodyHtml: parsed.html || '',
+      bodyText: parsed.text || '',
+      messageId: parsed.messageId || null,
+      inReplyTo: parsed.inReplyTo || null,
+      references: Array.isArray(parsed.references) ? parsed.references.join(' ') : (parsed.references || null),
+      headers: parsed.headers ? Object.fromEntries(parsed.headers) : {},
+      threadId: null,
+      sentAt: parsed.date ? new Date(parsed.date) : new Date()
+    }
+  });
+  await prisma.mailMessage.update({ where: { id: created.id }, data: { threadId: created.id } });
+  // Save attachments (if any)
+  if (Array.isArray(parsed.attachments) && parsed.attachments.length > 0) {
+    // Pick an owner for files: first user of tenant
+    const owner = await prisma.user.findFirst({ where: { tenantId }, orderBy: { id: 'asc' }, select: { id: true } });
+    const ownerId = owner?.id || 0;
+    for (const att of parsed.attachments) {
+      try {
+        const buffer = att.content; // Buffer
+        if (!buffer || !buffer.length) continue;
+        const uploadsDir = require('path').join(__dirname, '..', 'uploads');
+        const fs = require('fs');
+        if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+        const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}-${att.filename || 'attachment'}`;
+        const fullPath = require('path').join(uploadsDir, filename);
+        fs.writeFileSync(fullPath, buffer);
+        const fileRow = await prisma.file.create({
+          data: {
+            tenantId,
+            ownerId: ownerId,
+            path: fullPath,
+            mime: att.contentType || 'application/octet-stream',
+            size: buffer.length,
+            checksum: null
+          }
+        });
+        await prisma.mailAttachment.create({ data: { messageId: created.id, fileId: fileRow.id } });
+      } catch (e) {
+        console.warn('Failed to save inbound attachment:', e.message);
+      }
+    }
+  }
+  return created;
+}
+
+async function syncInbox({ tenantId, sinceDays = 7, max = 200 }) {
+  const account = await resolveAccount(tenantId);
+  if (!account) throw new Error('No mail account configured');
+  if (account.scope && !account.scope.toLowerCase().includes('read')) {
+    // allow if scope unset or includes read
+  }
+
+  const client = await getImapClient(account);
+  try {
+    const mailbox = await client.mailboxOpen('INBOX');
+    const sinceDate = new Date(); sinceDate.setDate(sinceDate.getDate() - sinceDays);
+    // Search UIDs SINCE date; include seen/unseen
+    const uids = await client.search({ since: sinceDate });
+    if (!uids || uids.length === 0) return { ok: true, synced: 0 };
+    // Take most recent first, limit to max
+    const toFetch = uids.sort((a,b)=>b-a).slice(0, max);
+    let synced = 0;
+    for await (const msg of client.fetch(toFetch, { source: true, envelope: true })) {
+      const raw = msg.source;
+      const parsed = await simpleParser(raw);
+      const spam = await spamCheck(raw);
+      await upsertInboundMessage({ tenantId, accountId: account.id, parsed, raw, spam });
+      synced += 1;
+    }
+    return { ok: true, synced };
+  } finally {
+    await client.logout().catch(() => {});
+  }
+}
+
 async function moveMessage({ tenantId, id, toFolder }) {
   const msg = await prisma.mailMessage.update({
     where: { id },
@@ -462,5 +590,7 @@ module.exports = {
   createMailAccount,
   updateMailAccount,
   getMailAccount,
-  seedDefaultTemplates
+  seedDefaultTemplates,
+  syncInbox,
+  listInbox
 };

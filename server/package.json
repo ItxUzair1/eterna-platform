@@ -22,12 +22,15 @@
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "express-validator": "^7.3.0",
+    "imapflow": "^1.1.1",
     "ioredis": "^5.8.2",
     "jsonwebtoken": "^9.0.2",
+    "mailparser": "^3.7.5",
     "multer": "^2.0.2",
     "mustache": "^4.2.0",
     "nodemailer": "^7.0.10",
-    "sharp": "^0.34.4"
+    "sharp": "^0.34.4",
+    "spamc": "^0.0.5"
   },
   "devDependencies": {
     "nodemon": "^3.1.10",

@@ -12,6 +12,8 @@ router.put('/drafts/:id', verifyToken, controller.updateDraft);
 router.post('/drafts/:id/send', verifyToken, controller.sendDraft);
 
 // Folders
+router.get('/inbox', verifyToken, controller.listInbox);
+router.post('/inbox/sync', verifyToken, controller.syncInbox);
 router.get('/sent', verifyToken, controller.listSentEmails);
 router.get('/drafts', verifyToken, controller.listDrafts);
 router.get('/trash', verifyToken, controller.listTrash);

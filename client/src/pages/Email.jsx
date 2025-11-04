@@ -8,10 +8,13 @@ import {
   getEmailTemplates, saveEmailTemplate, deleteEmailTemplate,
   previewTemplate, previewTemplateForLead,
   moveMessage, restoreMessage, hardDeleteMessage,
-  uploadEmailAttachment
+  uploadEmailAttachment,
+  getInbox, syncInbox
 } from '../services/emailService';
 
 const tabs = [
+  { key: 'inbox', label: 'Inbox' },
+  { key: 'spam', label: 'Spam' },
   { key: 'compose', label: 'Compose' },
   { key: 'sent', label: 'Sent' },
   { key: 'drafts', label: 'Drafts' },
@@ -34,6 +37,8 @@ export default function Email() {
   const [replyToMessageId, setReplyToMessageId] = useState(null);
 
   const [emails, setEmails] = useState([]);
+  const [inbox, setInbox] = useState([]);
+  const [spam, setSpam] = useState([]);
   const [drafts, setDrafts] = useState([]);
   const [trash, setTrash] = useState([]);
   const [templates, setTemplates] = useState([]);
@@ -57,6 +62,13 @@ export default function Email() {
 
   // Data loading per tab
   useEffect(() => {
+    if (tab === 'inbox' || tab === 'spam') {
+      getInbox({ limit: 100 }).then(r => {
+        const msgs = Array.isArray(r.data) ? r.data : [];
+        setInbox(msgs.filter(m => m.folder === 'Inbox'));
+        setSpam(msgs.filter(m => m.folder === 'Spam'));
+      }).catch(e => setStatus('Error loading inbox: ' + (e.response?.data?.error || e.message)));
+    }
     if (tab === 'sent') getSentEmails().then(r => setEmails(r.data));
     if (tab === 'drafts') getDrafts().then(r => setDrafts(r.data));
     if (tab === 'trash') getTrash().then(r => setTrash(r.data));
@@ -290,6 +302,81 @@ export default function Email() {
 
             {/* Main Content */}
             <main className="col-span-12 sm:col-span-9 lg:col-span-10">
+              {/* Inbox */}
+              {(tab === 'inbox' || tab === 'spam') && (
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+                  <div className="p-4 sm:p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-base font-semibold text-gray-900">{tab === 'inbox' ? 'Inbox' : 'Spam'}</h2>
+                      <button
+                        onClick={async () => {
+                          try {
+                            setStatus('Syncing inbox...');
+                            await syncInbox({ sinceDays: 7, max: 200 });
+                            const r = await getInbox({ limit: 100 });
+                            const msgs = Array.isArray(r.data) ? r.data : [];
+                            setInbox(msgs.filter(m => m.folder === 'Inbox'));
+                            setSpam(msgs.filter(m => m.folder === 'Spam'));
+                            setStatus('Inbox synced');
+                          } catch (e) {
+                            setStatus('Error syncing inbox: ' + (e.response?.data?.error || e.message));
+                          }
+                        }}
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded"
+                      >
+                        Sync
+                      </button>
+                    </div>
+                    {((tab === 'inbox' ? inbox : spam) || []).length === 0 ? (
+                      <div className="text-center py-12 text-gray-500">
+                        <p className="text-base">No emails found.</p>
+                      </div>
+                    ) : (
+                      <ul className="divide-y divide-gray-200">
+                        {(tab === 'inbox' ? inbox : spam).map(m => (
+                          <li key={m.id} className="py-4 hover:bg-gray-50 px-2 rounded-lg transition-colors">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-sm font-medium text-gray-900">From:</span>
+                                  <span className="text-sm text-gray-700 truncate">{m.from || 'Unknown'}</span>
+                                </div>
+                                <div className="mb-1">
+                                  <span className="text-sm font-semibold text-gray-900 truncate block">{m.subject || '(no subject)'}</span>
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {m.sentAt ? new Date(m.sentAt).toLocaleString() : ''}
+                                </div>
+                              </div>
+                              <div className="flex gap-2 items-start flex-shrink-0">
+                                <button
+                                  onClick={() => setViewingEmail(m)}
+                                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded"
+                                  type="button"
+                                >
+                                  Open
+                                </button>
+                                <button
+                                  onClick={() => moveMessage(m.id, 'Trash').then(async () => {
+                                    const r = await getInbox({ limit: 100 });
+                                    const msgs = Array.isArray(r.data) ? r.data : [];
+                                    setInbox(msgs.filter(x => x.folder === 'Inbox'));
+                                    setSpam(msgs.filter(x => x.folder === 'Spam'));
+                                  })}
+                                  className="px-3 py-1.5 text-gray-700 hover:bg-gray-100 text-sm font-medium rounded border border-gray-300"
+                                  type="button"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              )}
               {/* Config notice */}
               {tab === 'compose' && status && status.includes('No SMTP configuration') && (
                 <div className="mb-4 bg-yellow-50 border-l-4 border-yellow-500 rounded pr-4">
