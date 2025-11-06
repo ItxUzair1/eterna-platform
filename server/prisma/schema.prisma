@@ -13,11 +13,14 @@ datasource db {
 // =============================================================
 
 model Tenant {
-  id        Int      @id @default(autoincrement())
-  name      String
-  plan      String   @default("Individual")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id               Int            @id @default(autoincrement())
+  name             String
+  // Trial and lifecycle
+  trial_started_at DateTime?
+  trial_ends_at    DateTime?
+  lifecycle_state  LifecycleState @default(trial_active)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
 
   users                   User[]
   teams                   Team[]
@@ -779,15 +782,17 @@ model ConvertJobItem {
 // =============================================================
 
 model Subscription {
-  id               Int       @id @default(autoincrement())
+  id               Int          @id @default(autoincrement())
   tenantId         Int
-  plan             String
-  status           String
+  plan             Plan
+  status           SubStatus
   stripeCustomerId String?   @unique
   stripeSubId      String?   @unique
   currentPeriodEnd DateTime?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  seatsEntitled    Int        @default(1)
+  storageEntitledGB Int       @default(5)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
 
   tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   invoices Invoice[]
@@ -816,6 +821,29 @@ model Invoice {
   @@index([tenantId])
   @@index([status])
   @@map("invoices")
+}
+
+// ========================= Enums for Billing & Lifecycle =====================
+
+enum Plan {
+  individual
+  enterprise_seats
+  enterprise_unlimited
+}
+
+enum SubStatus {
+  active
+  trialing
+  past_due
+  canceled
+}
+
+enum LifecycleState {
+  active
+  trial_active
+  trial_expired
+  pending_deletion
+  deleted
 }
 
 model StorageUsage {

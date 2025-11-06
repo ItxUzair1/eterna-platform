@@ -1,16 +1,33 @@
 // client/src/services/api.js
 import axios from 'axios';
 
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
-});
+// Simple pub/sub for upgrade modal trigger
+let onUpgradeNeeded = null;
+export function setUpgradeHandler(fn) { onUpgradeNeeded = fn; }
+
+export const http = axios.create({ withCredentials: true });
+http.defaults.baseURL = import.meta.env.VITE_API_URL;
+
+http.interceptors.response.use(
+  (res) => res,
+  (error) => {
+    if (error?.response?.status === 403 && error?.response?.data?.code) {
+      const code = error.response.data.code;
+      const attemptedAction = error.config?.url || 'unknown';
+      if (onUpgradeNeeded) onUpgradeNeeded({ code, attemptedAction });
+    }
+    return Promise.reject(error);
+  }
+);
+
+export default http;
 
 let isRefreshing = false;
 let queue = [];
 
 function setAuthHeader(token) {
-  if (token) api.defaults.headers.common.Authorization = `Bearer ${token}`;
-  else delete api.defaults.headers.common.Authorization;
+  if (token) http.defaults.headers.common.Authorization = `Bearer ${token}`;
+  else delete http.defaults.headers.common.Authorization;
 }
 
 export function loadAuth() {
@@ -18,13 +35,13 @@ export function loadAuth() {
   setAuthHeader(at);
 }
 
-api.interceptors.request.use((config) => {
+http.interceptors.request.use((config) => {
   const at = localStorage.getItem('accessToken');
   if (at) config.headers.Authorization = `Bearer ${at}`;
   return config;
 });
 
-api.interceptors.response.use(
+http.interceptors.response.use(
   (r) => r,
   async (error) => {
     const original = error.config;
@@ -52,7 +69,7 @@ api.interceptors.response.use(
             queue.push({ resolve, reject });
           });
           original.headers.Authorization = `Bearer ${token}`;
-          return api(original);
+          return http(original);
         } catch (e) {
           return Promise.reject(e);
         }
@@ -82,7 +99,7 @@ api.interceptors.response.use(
 
         // Retry original request
         original.headers.Authorization = `Bearer ${accessToken}`;
-        return api(original);
+        return http(original);
       } catch (e) {
         // Clear auth state on refresh failure
         queue.forEach(p => p.reject(e));
@@ -106,4 +123,3 @@ api.interceptors.response.use(
   }
 );
 
-export default api;

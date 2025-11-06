@@ -1,5 +1,6 @@
 const prisma = require('../../config/db');
 const { audit } = require('../../utils/audit');
+const { getEntitlements } = require('../../entitlements/middleware');
 
 const APPS = ['crm','kanban','email','money','todos','admin','files','notifications'];
 const SCOPES = ['read','write','manage'];
@@ -13,8 +14,8 @@ function normalize(matrixRows) {
 
 async function getUserMatrix({ tenantId, userId }) {
   // For Individual plan, grant read/write to all apps by default
-  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { plan: true } });
-  const planLower = (tenant?.plan || '').toLowerCase().trim();
+  const ent = await getEntitlements(tenantId);
+  const planLower = (ent?.plan || '').toLowerCase().trim();
   if (planLower === 'individual') {
     const nonAdminApps = APPS.filter(a => a !== 'admin');
     const matrix = normalize(nonAdminApps.flatMap(a => ([

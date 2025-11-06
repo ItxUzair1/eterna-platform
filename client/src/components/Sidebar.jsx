@@ -88,6 +88,8 @@ export default function Sidebar({ isOpen, collapsed, onToggleCollapse, onCloseMo
             {items.map(it => (
               <SideItem key={it.to} to={it.to} icon={it.icon} collapsed={collapsed} label={it.label} />
             ))}
+            {/* Always show Billing */}
+            <SideItem to="/billing" icon={<DollarSign className="w-5 h-5" />} collapsed={collapsed} label="Billing" />
           </nav>
         </div>
 

@@ -23,6 +23,9 @@ import Roles from "./pages/Roles";
 import Members from "./pages/Members";
 import Teams from "./pages/Teams";
 import Audit from "./pages/Audit";
+import Billing from "./pages/Billing";
+import BillingSuccess from "./pages/BillingSuccess";
+import BillingCancel from "./pages/BillingCancel";
 
 export default function App() {
   return (
@@ -57,6 +60,10 @@ export default function App() {
         <Route path="/admin/teams" element={<Teams />} />
         <Route path="/admin/members" element={<Members />} />
         <Route path="/admin/audit" element={<Audit />} />
+        {/* Billing pages */}
+        <Route path="/billing" element={<Billing />} />
+        <Route path="/billing/success" element={<BillingSuccess />} />
+        <Route path="/billing/cancel" element={<BillingCancel />} />
       </Route>
 
       {/* Catch-all */}
