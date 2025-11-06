@@ -40,6 +40,9 @@ module.exports = {
   async listMembers(req, res) {
     res.json(await svc.listMembers({ tenantId: req.context.tenantId }));
   },
+  async listMinimalUsers(req, res) {
+    res.json(await svc.listMinimalUsers({ tenantId: req.context.tenantId }));
+  },
   async assignRole(req, res) {
     const out = await svc.assignRole({ tenantId: req.context.tenantId, actorId: req.context.userId, userId: +req.params.userId, roleId: req.body.roleId });
     res.json(out);

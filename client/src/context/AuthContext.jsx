@@ -61,7 +61,17 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   // Initial bootstrap
-  useEffect(() => { refreshAuth(); }, [refreshAuth]);
+  useEffect(() => {
+    refreshAuth();
+    const onFocus = () => refreshAuth();
+    const onVisible = () => { if (document.visibilityState === 'visible') refreshAuth(); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [refreshAuth]);
 
   // Signout helper (optional)
   const signout = useCallback(() => {

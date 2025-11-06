@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import api from '../services/api';
 import { withPermission } from '../modules/auth/withPermission';
-const APPS = ['crm','kanban','email','money','todos','admin','files','notifications'];
+const APPS = ['crm','kanban','email','money','todos','admin','files','notifications','image','billing'];
 const SCOPES = ['read','write','manage'];
 
 function MatrixToggle({ value, onChange }) {

@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const prisma = require('../config/db');
 const { verifyToken } = require('../middlewares/authMiddleware');
-const { startCheckout, startPortal, confirmCheckoutSession } = require('./service');
+const { startCheckout, startPortal, confirmCheckoutSession, reconcileLatestForTenant } = require('./service');
 
 // All routes expect an authenticated context with tenantId
 router.post('/checkout/start', verifyToken, async (req, res) => {
@@ -52,6 +52,21 @@ router.post('/checkout/confirm', verifyToken, async (req, res) => {
     res.json(result);
   } catch (e) {
     console.error('[billing] confirm error:', e);
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// Reconcile Stripe subscription for tenant if success callback was missed
+router.post('/reconcile', verifyToken, async (req, res) => {
+  try {
+    const tenantId = Number(req.user?.tenantId || req.body?.tenantId || req.query?.tenantId);
+    if (!tenantId || isNaN(tenantId)) {
+      return res.status(400).json({ error: 'Missing tenantId' });
+    }
+    const result = await reconcileLatestForTenant({ tenantId });
+    res.json(result);
+  } catch (e) {
+    console.error('[billing] reconcile error:', e);
     res.status(400).json({ error: e.message });
   }
 });
