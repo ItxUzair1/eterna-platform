@@ -1,6 +1,5 @@
 // email.service.js
 const nodemailer = require('nodemailer');
-const fs = require('fs');
 const path = require('path');
 const prisma = require('../../config/db');
 const { ImapFlow } = require('imapflow');
@@ -119,15 +118,13 @@ async function sendEmail({
     });
 
     for (const file of files) {
-      if (fs.existsSync(file.path)) {
-        const attachmentMeta = attachmentMap.get(file.id);
-        // Use original name from attachment metadata if available, otherwise use basename
-        const filename = attachmentMeta?.name || attachmentMeta?.originalName || path.basename(file.path);
-        nodemailerAttachments.push({
-          filename: filename,
-          path: file.path,
-          contentType: file.mime
-        });
+      const attachmentMeta = attachmentMap.get(file.id);
+      const filename = attachmentMeta?.name || attachmentMeta?.originalName || path.basename(file.path || 'attachment');
+      // Generate a signed URL per attachment (private by default)
+      const { getSignedDownloadUrl } = require('../../utils/spaces');
+      const url = await getSignedDownloadUrl(file.path, 60 * 30);
+      if (url) {
+        nodemailerAttachments.push({ filename, path: url, contentType: file.mime });
       }
     }
   }
@@ -378,17 +375,14 @@ async function upsertInboundMessage({ tenantId, accountId, parsed, raw, spam }) 
       try {
         const buffer = att.content; // Buffer
         if (!buffer || !buffer.length) continue;
-        const uploadsDir = require('path').join(__dirname, '..', 'uploads');
-        const fs = require('fs');
-        if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-        const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}-${att.filename || 'attachment'}`;
-        const fullPath = require('path').join(uploadsDir, filename);
-        fs.writeFileSync(fullPath, buffer);
+        const { uploadBufferToSpaces, uniqueKey } = require('../../utils/spaces');
+        const key = uniqueKey('email/inbound', att.filename || 'attachment');
+        await uploadBufferToSpaces({ key, buffer, contentType: att.contentType || 'application/octet-stream' });
         const fileRow = await prisma.file.create({
           data: {
             tenantId,
             ownerId: ownerId,
-            path: fullPath,
+            path: key,
             mime: att.contentType || 'application/octet-stream',
             size: buffer.length,
             checksum: null

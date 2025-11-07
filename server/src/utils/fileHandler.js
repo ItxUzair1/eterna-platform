@@ -1,23 +1,20 @@
-const path = require("path");
-const fs = require("fs");
-const multer = require("multer");
 const prisma = require("../config/db");
-
-const upload = multer({ dest: path.join(__dirname, "..", "uploads") });
+const { spacesUploadMiddleware } = require('./spaces');
 
 function withSingleFile(field = "file") {
-  return [upload.single(field)];
+  return [spacesUploadMiddleware(field, { maxCount: 1, prefix: 'uploads' })];
 }
 
-async function uploadFormFile(ctx, req) {
-  if (!req.file) {
+async function uploadFormFile(ctx, reqOrFile) {
+  const file = reqOrFile?.file ? reqOrFile.file : reqOrFile; // support (ctx, req) and (ctx, file)
+  if (!file) {
     const e = new Error("No file uploaded");
     e.status = 400;
     throw e;
   }
-  const filePath = req.file.path;
-  const size = req.file.size;
-  const mime = req.file.mimetype;
+  const filePath = file.key; // store object key in path field
+  const size = file.size;
+  const mime = file.mimetype;
 
   const fileRow = await prisma.file.create({
     data: {

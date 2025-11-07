@@ -3,7 +3,6 @@ const path = require('path');
 const fs = require('fs');
 const fsAsync = require('fs/promises');
 const archiver = require('archiver');
-const multer = require('multer');
 const jwt = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
 const { body, param, validationResult } = require('express-validator');
@@ -11,7 +10,7 @@ const { enqueue } = require('./image.queue');
 const { getBroker } = require('./image.ss-broker');
 
 const prisma = new PrismaClient();
-const upload = multer({ dest: path.join(process.cwd(), 'tmp', 'uploads') });
+const { spacesUploadMiddleware, getSignedDownloadUrl } = require('../../utils/spaces');
 
 const OK_FORMATS = new Set(['jpg', 'jpeg', 'png', 'bmp', 'gif', 'tiff', 'webp']);
 const MAX_FILES = 100;
@@ -48,30 +47,36 @@ exports.createJob = [
 // Upload originals and persist in File
 exports.uploadFiles = [
   param('jobId').isInt(),
-  upload.array('files', MAX_FILES),
+  spacesUploadMiddleware('files', { maxCount: MAX_FILES, prefix: 'image/originals' }),
   async (req, res) => {
-    if (!val(req, res)) return;
-    const files = req.files || [];
-    const total = files.reduce((s, f) => s + f.size, 0);
-    if (!files.length) return res.status(400).json({ error: 'No files uploaded' });
-    if (files.length > MAX_FILES) return res.status(400).json({ error: `Max ${MAX_FILES} files` });
-    if (total > MAX_TOTAL) return res.status(400).json({ error: 'Total size exceeds 200MB' });
+    try {
+      if (!val(req, res)) return;
+      const files = req.files || [];
+      const total = files.reduce((s, f) => s + f.size, 0);
+      if (!files.length) return res.status(400).json({ error: 'No files uploaded' });
+      if (files.length > MAX_FILES) return res.status(400).json({ error: `Max ${MAX_FILES} files` });
+      if (total > MAX_TOTAL) return res.status(400).json({ error: 'Total size exceeds 200MB' });
 
-    const saved = [];
-    for (const f of files) {
-      const row = await prisma.file.create({
-        data: {
-          tenantId: req.user.tenantId,
-          ownerId: req.user.id,
-          path: f.path,
-          mime: f.mimetype,
-          size: Number(f.size),
-          checksum: null
-        }
-      });
-      saved.push({ id: row.id, originalName: f.originalname });
+      const saved = [];
+      for (const f of files) {
+        const row = await prisma.file.create({
+          data: {
+            tenantId: req.user.tenantId,
+            ownerId: req.user.id,
+            path: f.key,
+            mime: f.mimetype,
+            size: Number(f.size),
+            checksum: null
+          }
+        });
+        saved.push({ id: row.id, originalName: f.originalname });
+      }
+      res.json({ jobId: Number(req.params.jobId), files: saved });
+    } catch (e) {
+      console.error('uploadFiles failed:', e);
+      const missing = require('../../utils/spaces');
+      res.status(500).json({ error: e.message || 'Upload failed. Check Spaces configuration.' });
     }
-    res.json({ jobId: Number(req.params.jobId), files: saved });
   }
 ];
 
@@ -186,9 +191,37 @@ exports.downloadOutput = [
       include: { outputFile: true }
     });
     if (!item?.outputFile) return res.status(404).end();
-    const outPath = item.outputFile.path;
-    const filename = path.basename(outPath);
-    res.download(outPath, filename);
+    const key = item.outputFile.path; // stored object key in path
+    const bucket = process.env.SPACES_BUCKET;
+    if (!bucket) return res.status(500).json({ error: 'Spaces not configured' });
+    
+    try {
+      const { GetObjectCommand } = require('@aws-sdk/client-s3');
+      const { s3 } = require('../../utils/spaces');
+      const cmd = new GetObjectCommand({ Bucket: bucket, Key: key });
+      const response = await s3.send(cmd);
+      
+      // Extract filename from key
+      const filename = path.basename(key) || `image-${outId}.${item.outputFile.mime?.split('/')[1] || 'jpg'}`;
+      
+      // Set download headers
+      res.setHeader('Content-Type', item.outputFile.mime || 'application/octet-stream');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Length', item.outputFile.size || response.ContentLength || 0);
+      
+      // Stream the file to response
+      if (response.Body) {
+        for await (const chunk of response.Body) {
+          res.write(chunk);
+        }
+        res.end();
+      } else {
+        res.status(500).json({ error: 'Failed to stream file' });
+      }
+    } catch (err) {
+      console.error('Download error:', err);
+      res.status(500).json({ error: err.message || 'Download failed' });
+    }
   }
 ];
 
@@ -211,9 +244,15 @@ exports.downloadZip = [
     archive.on('error', err => res.status(500).end(String(err)));
     archive.pipe(res);
 
+    const { s3 } = require('../../utils/spaces');
+    const { GetObjectCommand } = require('@aws-sdk/client-s3');
+    const bucket = process.env.SPACES_BUCKET;
     for (const it of items) {
-      const outPath = it.outputFile.path;
-      archive.file(outPath, { name: path.basename(outPath) });
+      const key = it.outputFile.path;
+      if (!key) continue;
+      const cmd = new GetObjectCommand({ Bucket: bucket, Key: key });
+      const obj = await s3.send(cmd);
+      archive.append(obj.Body, { name: path.basename(key) });
     }
     archive.finalize();
   }

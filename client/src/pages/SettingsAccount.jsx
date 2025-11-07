@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import {
   getMe,
   updateProfile,
+  uploadPhoto,
   changeEmail,
   changePassword,
 } from "../services/authService";
@@ -13,6 +14,7 @@ export default function SettingsAccount() {
   const [me, setMe] = useState(null);
   const [toast, setToast] = useState({ type: "", text: "" });
   const [busy, setBusy] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   useEffect(() => {
     (async () => setMe(await getMe()))();
@@ -70,6 +72,35 @@ export default function SettingsAccount() {
       flash("err", e?.response?.data?.error || "Failed to change password");
     } finally {
       setBusy(false);
+    }
+  };
+
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      flash("err", "Please select an image file");
+      return;
+    }
+    
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      flash("err", "Image size must be less than 5MB");
+      return;
+    }
+    
+    setUploadingPhoto(true);
+    try {
+      const updated = await uploadPhoto(file);
+      setMe(updated);
+      flash("ok", "Profile picture updated");
+    } catch (err) {
+      flash("err", err?.response?.data?.error || "Failed to upload photo");
+    } finally {
+      setUploadingPhoto(false);
+      e.target.value = ''; // Reset input
     }
   };
 
@@ -207,6 +238,40 @@ export default function SettingsAccount() {
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Profile */}
           <Card title="Profile" desc="Your name and role information.">
+            {/* Profile Picture */}
+            <div className="mb-6">
+              <label className="block text-xs text-slate-700 mb-2">Profile Picture</label>
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  <img
+                    src={me.photoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent((me.firstName || '') + ' ' + (me.lastName || '') || me.username || 'User')}&background=indigo&color=fff&size=128`}
+                    alt="Profile"
+                    className="w-20 h-20 rounded-full object-cover border-2 border-slate-200"
+                  />
+                  {uploadingPhoto && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full">
+                      <svg className="h-6 w-6 animate-spin text-white" viewBox="0 0 24 24">
+                        <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-70" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label className="inline-flex items-center justify-center rounded-xl px-4 py-2 bg-gradient-to-r from-indigo-500 via-violet-500 to-cyan-500 hover:from-indigo-600 hover:via-violet-600 hover:to-cyan-600 text-white font-medium shadow-sm hover:shadow-md active:scale-[0.98] transition-all cursor-pointer">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handlePhotoUpload}
+                      className="hidden"
+                      disabled={uploadingPhoto}
+                    />
+                    {uploadingPhoto ? 'Uploading...' : 'Upload Photo'}
+                  </label>
+                  <p className="text-xs text-slate-500 mt-1">JPG, PNG or GIF. Max 5MB.</p>
+                </div>
+              </div>
+            </div>
             <form onSubmit={saveProfile} className="space-y-4">
               <div className="grid sm:grid-cols-2 gap-4">
                 <Input
@@ -247,6 +312,7 @@ export default function SettingsAccount() {
                 onChange={(e) =>
                   setMe((m) => ({ ...m, email: e.target.value }))
                 }
+                hint="After changing your email, you'll need to reconfigure your email module settings."
               />
               <div className="flex justify-end">
                 <Button tone="sky" type="submit">

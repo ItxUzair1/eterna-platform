@@ -9,7 +9,8 @@ import {
   previewTemplate, previewTemplateForLead,
   moveMessage, restoreMessage, hardDeleteMessage,
   uploadEmailAttachment,
-  getInbox, syncInbox
+  getInbox, syncInbox,
+  getMailAccount
 } from '../services/emailService';
 
 const tabs = [
@@ -49,6 +50,29 @@ export default function Email() {
   const [showBcc, setShowBcc] = useState(false);
   const [editingDraftId, setEditingDraftId] = useState(null);
   const [viewingEmail, setViewingEmail] = useState(null);
+  const [emailConfigured, setEmailConfigured] = useState(null); // null = checking, true = configured, false = not configured
+
+  // Check email configuration on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const account = await getMailAccount();
+        setEmailConfigured(!!account.data?.id);
+        if (!account.data?.id) {
+          setStatus('⚠️ Email configuration required. Please configure your email settings first.');
+        }
+      } catch (err) {
+        if (err.response?.status === 403 && err.response?.data?.code === 'EMAIL_CONFIG_REQUIRED') {
+          setEmailConfigured(false);
+          setStatus('⚠️ Email configuration required. Redirecting to settings...');
+          setTimeout(() => navigate('/dashboard/email-settings'), 2000);
+        } else {
+          console.error('Failed to check email config:', err);
+          setEmailConfigured(false);
+        }
+      }
+    })();
+  }, [navigate]);
 
   // Lead deep-link handling
   useEffect(() => {
@@ -242,6 +266,31 @@ export default function Email() {
   // - Top App Bar: sticky, with page title and Settings action
   // - Left Rail (md+): vertical tab navigation
   // - Main Content: scrollable card with consistent gutters and max width
+  // Show configuration message if email is not configured
+  if (emailConfigured === false) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6 text-center">
+          <div className="mb-4">
+            <svg className="mx-auto h-12 w-12 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Email Configuration Required</h2>
+          <p className="text-gray-600 mb-6">
+            Please configure your email settings before using the email module.
+          </p>
+          <button
+            onClick={() => navigate('/dashboard/email-settings')}
+            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+          >
+            Go to Email Settings
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Top App Bar */}

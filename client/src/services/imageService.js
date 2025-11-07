@@ -20,13 +20,13 @@ export const sseUrl = (jobId, token) =>
   `${api.defaults.baseURL}/image/jobs/${jobId}/sse?token=${encodeURIComponent(token)}`;
 
 export const downloadOutput = (jobId, outputId) => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('accessToken');
   const url = `${api.defaults.baseURL}/image/jobs/${jobId}/outputs/${outputId}?token=${encodeURIComponent(token)}`;
   window.open(url, '_blank');
 };
 
 export const downloadZip = (jobId) => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('accessToken');
   const url = `${api.defaults.baseURL}/image/jobs/${jobId}/zip?token=${encodeURIComponent(token)}`;
   window.open(url, '_blank');
 };

@@ -50,21 +50,20 @@ const listComments = async (req, res) => {
 };
 
 const upload = require('./upload');
-const fs = require('fs');
+const { getSignedDownloadUrl } = require('../../utils/spaces');
 
 const attachFile = [
   upload.single('file'),
   async (req, res) => {
     const { cardId } = req.body;
-    const { path, mimetype } = req.file;
-    const stat = fs.statSync(req.file.path);
+    const { key, mimetype, size } = { key: req.file.key, mimetype: req.file.mimetype, size: req.file.size };
     const r = await svc.attachFile({
       tenantId: req.user.tenantId,
       userId: req.user.id,
       cardId: Number(cardId),
-      path,
+      path: key,
       mime: mimetype,
-      size: stat.size
+      size
     });
     res.json(r);
   }

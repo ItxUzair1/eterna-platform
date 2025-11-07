@@ -3,6 +3,7 @@ import api from './api';
 export const listBoards = () => api.get('/kanban/boards');
 export const createBoard = (data) => api.post('/kanban/boards', data);
 export const getBoardFull = (id) => api.get(`/kanban/boards/${id}`);
+export const updateBoard = (id, data) => api.patch(`/kanban/boards/${id}`, data);
 
 export const createColumn = (data) => api.post('/kanban/columns', data);
 export const reorderColumns = (data) => api.post('/kanban/columns/reorder', data);

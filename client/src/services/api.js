@@ -29,6 +29,13 @@ api.interceptors.response.use(
   async (error) => {
     const original = error.config;
 
+    // Handle 403 errors (plan restrictions) - don't retry, just log
+    if (error?.response?.status === 403 && error?.response?.data?.code === 'ENTERPRISE_PLAN_REQUIRED') {
+      console.warn('[API] Enterprise plan required:', error.response.data.detail);
+      // Don't retry 403 errors, they're permanent for this plan
+      return Promise.reject(error);
+    }
+
     // Handle 401 errors that need token refresh
     if (error?.response?.status === 401 && 
         !original._retry && 

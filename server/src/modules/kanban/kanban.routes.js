@@ -11,6 +11,7 @@ const router = express.Router();
 router.get('/boards', verifyToken, board.listBoards);
 router.post('/boards', verifyToken, board.createBoard);
 router.get('/boards/:id', verifyToken, board.getBoardFull);
+router.patch('/boards/:id', verifyToken, board.updateBoard);
 router.post('/boards/:id/archive', verifyToken, board.archiveBoard);
 
 // Columns

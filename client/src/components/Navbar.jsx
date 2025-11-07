@@ -1,9 +1,23 @@
 // src/components/NavBar.jsx
 import { Bell, Menu } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { getMe } from "../services/authService";
 
 export default function NavBar({ onToggleSidebar }) {
   const navigate = useNavigate();
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const me = await getMe();
+        setUser(me);
+      } catch (err) {
+        console.error('Failed to load user:', err);
+      }
+    })();
+  }, []);
 
   return (
     <nav
@@ -43,11 +57,23 @@ export default function NavBar({ onToggleSidebar }) {
           title="Account Settings"
           aria-label="Account Settings"
         >
-          <img
-            src="https://i.pravatar.cc/100"
-            alt="User avatar"
-            className="w-full h-full object-cover"
-          />
+          {user?.photoUrl ? (
+            <img
+              src={user.photoUrl}
+              alt="User avatar"
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                // Fallback to avatar if image fails to load
+                e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent((user.firstName || '') + ' ' + (user.lastName || '') || user.username || 'User')}&background=indigo&color=fff&size=128`;
+              }}
+            />
+          ) : (
+            <img
+              src={`https://ui-avatars.com/api/?name=${encodeURIComponent((user?.firstName || '') + ' ' + (user?.lastName || '') || user?.username || 'User')}&background=indigo&color=fff&size=128`}
+              alt="User avatar"
+              className="w-full h-full object-cover"
+            />
+          )}
         </button>
       </div>
     </nav>

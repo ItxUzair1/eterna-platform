@@ -1,6 +1,7 @@
 // email.controller.js
 const emailService = require('./email.service');
 const { withSingleFile, uploadFormFile } = require('../../utils/fileHandler');
+const { getSignedDownloadUrl } = require('../../utils/spaces');
 const prisma = require('../../config/db');
 
 const sendEmail = async (req, res) => {

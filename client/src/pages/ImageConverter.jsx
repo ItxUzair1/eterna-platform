@@ -9,7 +9,7 @@ export default function ImageConverter() {
   const [files, setFiles] = useState([]);
   const [job, setJob] = useState(null);
   const [events, setEvents] = useState([]);
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('accessToken');
 
   const totalBytes = useMemo(()=> files.reduce((s,f)=>s+f.size,0), [files]);
   const canUpload = files.length >= 1 && files.length <= 100 && totalBytes <= 200*1024*1024;
@@ -29,17 +29,23 @@ export default function ImageConverter() {
   const toggle = (fmt) => setTargets(t => t.includes(fmt) ? t.filter(x=>x!==fmt) : [...t,fmt]);
 
   const start = async () => {
-    const { data: j } = await createJob(targets.join(','));
-    setJob(j);
-    const up = await uploadFiles(j.id, files);
-    const fileIds = (up.data?.files || []).map(f => f.id);
-    await planTargets(j.id, targets, fileIds);
-    await enqueueJob(j.id);
-    attachSSE(j.id);
+    try {
+      const { data: j } = await createJob(targets.join(','));
+      setJob(j);
+      const up = await uploadFiles(j.id, files);
+      const fileIds = (up.data?.files || []).map(f => f.id);
+      await planTargets(j.id, targets, fileIds);
+      await enqueueJob(j.id);
+      attachSSE(j.id);
+    } catch (err) {
+      const msg = err?.response?.data?.error || err?.message || 'Failed to start conversion';
+      alert(msg);
+      console.error(err);
+    }
   };
 
   const attachSSE = (jobId) => {
-    const url = sseUrl(jobId, token);
+    const url = sseUrl(jobId, localStorage.getItem('accessToken'));
     const es = new EventSource(url, { withCredentials: false });
     es.onmessage = (ev) => {
       const payload = JSON.parse(ev.data);

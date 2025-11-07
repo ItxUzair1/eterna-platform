@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const prisma = require('../config/db');
 
-const ACCESS_TTL = process.env.ACCESS_TTL || '15m';
+const ACCESS_TTL = process.env.ACCESS_TTL || '1h'; // Increased from 15m to 1h to reduce expiration issues
 const REFRESH_TTL_MS = Number(process.env.REFRESH_TTL_MS || 1000 * 60 * 60 * 24 * 30); // 30d
 
 const sha256 = (v) => crypto.createHash('sha256').update(v).digest('hex');

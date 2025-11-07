@@ -12,6 +12,12 @@ export const resetPassword = (token, password) => api.post('/auth/password/reset
 
 export const getMe = () => api.get('/auth/me').then(r => r.data.user);
 export const updateProfile = (payload) => api.put('/auth/me/profile', payload).then(r => r.data.user);
+export const uploadPhoto = (file) => {
+  const formData = new FormData();
+  formData.append('photo', file);
+  // Don't set Content-Type header - let axios set it automatically with boundary
+  return api.post('/auth/me/photo', formData).then(r => r.data.user);
+};
 export const changeEmail = (email) => api.post('/auth/me/change-email', { email }).then(r => r.data);
 export const changePassword = (oldPassword, newPassword) => api.post('/auth/me/change-password', { oldPassword, newPassword }).then(r => r.data);
 

@@ -27,6 +27,13 @@ async function archiveBoard({ tenantId, boardId }) {
   return board;
 }
 
+async function updateBoard({ tenantId, boardId, data }) {
+  return prisma.board.update({
+    where: { id: boardId, tenantId },
+    data
+  });
+}
+
 async function getBoardFull(tenantId, boardId) {
   // Return columns/cards/comments/attachments for UI hydration
   return prisma.board.findFirst({
@@ -47,4 +54,4 @@ async function getBoardFull(tenantId, boardId) {
   });
 }
 
-module.exports = { listBoards, createBoard, archiveBoard, getBoardFull };
+module.exports = { listBoards, createBoard, updateBoard, archiveBoard, getBoardFull };

@@ -113,20 +113,40 @@ const signup = async (data) => {
   return user;
 };
 
-const verifyEmail = async (token) => {
+const verifyEmail = async (token, newEmail = null) => {
   const now = new Date();
   const rec = await prisma.emailVerification.findUnique({ where: { hashedToken: sha256(token) } });
   if (!rec || rec.expiresAt < now) throw new Error('Invalid or expired token');
   const user = await prisma.user.findUnique({ where: { id: rec.userId } });
   if (!user) throw new Error('User not found');
 
-  if (!user.emailVerifiedAt) {
-    await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx) => {
+    // If newEmail is provided, this is an email change request
+    if (newEmail && newEmail !== user.email) {
+      // Check if new email is already in use
+      const existing = await tx.user.findFirst({ where: { email: newEmail, id: { not: user.id } } });
+      if (existing) throw new Error('Email already in use');
+      
+      // Update email and mark as verified
+      await tx.user.update({ 
+        where: { id: user.id }, 
+        data: { 
+          email: newEmail,
+          emailVerifiedAt: now, 
+          tokenVersion: { increment: 1 } 
+        } 
+      });
+      
+      // Invalidate email settings when email changes (user needs to reconfigure)
+      await tx.mailAccount.deleteMany({ where: { tenantId: user.tenantId } });
+    } else if (!user.emailVerifiedAt) {
+      // Initial email verification
       await tx.user.update({ where: { id: user.id }, data: { emailVerifiedAt: now, tokenVersion: { increment: 1 } } });
-      await tx.emailVerification.update({ where: { id: rec.id }, data: { usedAt: now } });
-      await tx.emailVerification.deleteMany({ where: { userId: user.id, id: { not: rec.id } } });
-    });
-  }
+    }
+    
+    await tx.emailVerification.update({ where: { id: rec.id }, data: { usedAt: now } });
+    await tx.emailVerification.deleteMany({ where: { userId: user.id, id: { not: rec.id } } });
+  });
   return { ok: true };
 };
 
@@ -222,6 +242,49 @@ const acceptInvite = async ({ token, username, password, teamId }) => {
   return { user };
 };
 
+const updateProfile = async ({ userId, payload }) => {
+  const { firstName, lastName, jobTitle, photo } = payload;
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      ...(firstName !== undefined && { firstName }),
+      ...(lastName !== undefined && { lastName }),
+      ...(jobTitle !== undefined && { jobTitle }),
+      ...(photo !== undefined && { photo })
+    },
+    select: { id: true, email: true, username: true, firstName: true, lastName: true, jobTitle: true, photo: true, emailVerifiedAt: true }
+  });
+  return user;
+};
+
+const changeEmail = async ({ userId, newEmail }) => {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new Error('User not found');
+  
+  if (user.email === newEmail) throw new Error('New email is the same as current email');
+  
+  // Check if email is already in use
+  const existing = await prisma.user.findFirst({ where: { email: newEmail, id: { not: userId } } });
+  if (existing) throw new Error('Email already in use');
+  
+  // Create email change verification token
+  const raw = makeToken();
+  await prisma.emailVerification.create({
+    data: { 
+      tenantId: user.tenantId, 
+      userId: user.id, 
+      hashedToken: sha256(raw), 
+      expiresAt: token24h()
+    }
+  });
+  
+  // Send verification email to new address with token that includes newEmail
+  const verifyUrl = `${process.env.WEB_URL}/verify-email?token=${raw}&newEmail=${encodeURIComponent(newEmail)}`;
+  await sendEmail({ to: newEmail, subject: 'Verify your new email address', html: `<p>Click to verify your new email:</p><p><a href="${verifyUrl}">${verifyUrl}</a></p>` });
+  
+  return { ok: true };
+};
+
 const changePassword = async ({ userId, oldPassword, newPassword }) => {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   const ok = await bcrypt.compare(oldPassword, user.passwordHash);
@@ -236,5 +299,5 @@ module.exports = {
   signup, verifyEmail, signin, refreshSession,
   requestPasswordReset, resetPassword,
   invite, acceptInvite,
-  changePassword
+  updateProfile, changeEmail, changePassword
 };

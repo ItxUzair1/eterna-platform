@@ -17,10 +17,21 @@ const getBoardFull = async (req, res) => {
   res.json(data);
 };
 
+const updateBoard = async (req, res) => {
+  const boardId = Number(req.params.id);
+  const { title, teamId } = req.body;
+  const data = await svc.updateBoard({ 
+    tenantId: req.user.tenantId, 
+    boardId, 
+    data: { title, teamId } 
+  });
+  res.json(data);
+};
+
 const archiveBoard = async (req, res) => {
   const boardId = Number(req.params.id);
   const data = await svc.archiveBoard({ tenantId: req.user.tenantId, boardId });
   res.json(data);
 };
 
-module.exports = { listBoards, createBoard, getBoardFull, archiveBoard };
+module.exports = { listBoards, createBoard, getBoardFull, updateBoard, archiveBoard };

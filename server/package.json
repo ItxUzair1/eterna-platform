@@ -4,13 +4,15 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "generate-encryption-key": "node scripts/generate-encryption-key.js"
+    "generate-encryption-key": "node scripts/generate-encryption-key.js",
+    "verify-spaces": "node scripts/verify-spaces.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.925.0",
+    "@aws-sdk/s3-request-presigner": "^3.925.0",
     "@prisma/client": "^6.18.0",
     "archiver": "^7.0.1",
     "axios": "^1.13.1",
@@ -27,6 +29,7 @@
     "jsonwebtoken": "^9.0.2",
     "mailparser": "^3.7.5",
     "multer": "^2.0.2",
+    "multer-s3": "^3.0.1",
     "mustache": "^4.2.0",
     "nodemailer": "^7.0.10",
     "sharp": "^0.34.4",
@@ -35,5 +38,6 @@
   "devDependencies": {
     "nodemon": "^3.1.10",
     "prisma": "^6.18.0"
-  }
+  },
+  "description": ""
 }
