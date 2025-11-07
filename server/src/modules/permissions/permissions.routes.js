@@ -12,6 +12,9 @@ router.get('/me/apps', verifyToken, ctrl.getMyApps);
 // Debug endpoint - accessible to all authenticated users to check their permissions
 router.get('/me/debug', verifyToken, ctrl.getMyDebug);
 
+// Minimal users directory for CRM owner filters - available on CRM read
+router.get('/users-minimal', verifyToken, rbacGuard('crm', 'read'), ctrl.listMinimalUsers);
+
 // Fix endpoint - seeds missing admin permissions for Enterprise tenants
 router.post('/me/fix-permissions', verifyToken, ctrl.fixEnterprisePermissions);
 

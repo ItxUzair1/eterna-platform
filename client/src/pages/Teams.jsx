@@ -8,7 +8,7 @@ import { listUsers } from '../services/userService';
 import Toggle from '../components/Toggle';
 import { PrimaryButton, SubtleButton } from '../components/GradientButton';
 
-const APPS = ['crm', 'kanban', 'email', 'money', 'todos', 'admin', 'files', 'notifications'];
+const APPS = ['crm', 'kanban', 'email', 'money', 'todos', 'admin', 'files', 'notifications', 'image', 'billing'];
 const SCOPES = ['read', 'write', 'manage'];
 
 export default function Teams() {

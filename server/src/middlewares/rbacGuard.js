@@ -1,4 +1,5 @@
 const prisma = require('../config/db');
+const { getEntitlements } = require('../entitlements/middleware');
 
 async function resolvePermissions({ tenantId, userId }) {
   console.log(`[resolvePermissions] START tenantId=${tenantId}, userId=${userId}`);
@@ -21,21 +22,21 @@ async function resolvePermissions({ tenantId, userId }) {
   const userPerms = await prisma.userPermission.findMany({ where: { userId } });
   console.log(`[resolvePermissions] Found ${userPerms.length} user perms`);
 
-  // If user is in teams with permissions, use ONLY team permissions (restrictive)
-  // Otherwise, use tenant defaults
-  const hasTeamPermissions = teamPerms.length > 0;
+  // If user is in ANY team, use ONLY team permissions (restrictive mode - even if empty)
+  // Only users NOT in any team get tenant defaults
+  const isInTeam = teamIds.length > 0;
   const merged = new Map();
   
-  if (hasTeamPermissions) {
-    // Start with empty set, only add team permissions
+  if (isInTeam) {
+    // Start with empty set, only add team permissions (if admin has set any)
     teamPerms.forEach(p => { 
       if (p.enabled) merged.set(`${p.appKey}:${p.scopeKey}`, true); 
     });
-    console.log(`[resolvePermissions] Using team permissions (restrictive mode): ${merged.size} permissions`);
+    console.log(`[resolvePermissions] User is in team(s), using ONLY team permissions (restrictive mode): ${merged.size} permissions`);
   } else {
-    // Start with tenant defaults
+    // Start with tenant defaults (only for users not in any team)
     defaultPerms.forEach(p => merged.set(`${p.appKey}:${p.scopeKey}`, true));
-    console.log(`[resolvePermissions] Using tenant defaults: ${merged.size} permissions`);
+    console.log(`[resolvePermissions] User not in any team, using tenant defaults: ${merged.size} permissions`);
   }
   
   // Apply user-specific overrides (can add or remove)
@@ -73,59 +74,75 @@ const rbacGuard = (appKey, ...scopes) => {
         console.log(`[rbacGuard] Using cached permissions`);
       }
       
-      // Auto-seed Enterprise permissions if missing (for admin app specifically)
-      let plan = req.context?.plan;
-      if (!plan && tenantId) {
-        const tenant = await prisma.tenant.findUnique({
-          where: { id: tenantId },
-          select: { plan: true }
-        });
-        plan = tenant?.plan || null;
-        if (req.context) req.context.plan = plan;
-      }
-      const planLower = (plan || '').toLowerCase().trim();
+      // Check if user is in any team FIRST - team members get restrictive permissions regardless of plan
+      const userTeamIds = (await prisma.teamMember.findMany({ where: { userId }, select: { teamId: true } }))
+        .map(t => t.teamId);
+      const isInTeam = userTeamIds.length > 0;
 
-      // Individual plan: allow all non-admin apps and scopes (read/write). Block admin.
-      if (planLower === 'individual') {
-        if (appKey === 'admin') {
-          console.log('[rbacGuard] REJECTING: Admin not available on Individual plan');
-          return res.status(403).json({ error: 'Admin app not available on Individual plan' });
+      // Only apply plan-based auto-grants if user is NOT in any team
+      if (!isInTeam) {
+        // Use entitlements for plan/lifecycle
+        const ent = await getEntitlements(tenantId);
+        const planLower = (ent?.plan || '').toLowerCase().trim();
+        const isTrial = ent?.lifecycle_state === 'trial_active';
+
+        // Enterprise plan: allow all apps and scopes including admin
+        if (planLower.startsWith('enterprise')) {
+          console.log('[rbacGuard] ALLOWING: Enterprise plan grants full access including admin');
+          return next();
         }
-        console.log('[rbacGuard] ALLOWING: Individual plan grants full RW for non-admin apps');
-        return next();
+
+        // Individual plan: allow all non-admin apps and scopes (read/write). Block admin.
+        // Do NOT auto-allow during trial.
+        if (planLower === 'individual' && !isTrial) {
+          if (appKey === 'admin') {
+            console.log('[rbacGuard] REJECTING: Admin not available on Individual plan');
+            return res.status(403).json({ error: 'Admin app not available on Individual plan' });
+          }
+          console.log('[rbacGuard] ALLOWING: Individual plan grants full RW for non-admin apps');
+          return next();
+        }
+      } else {
+        console.log('[rbacGuard] User is in team(s), skipping plan-based auto-grants - using restrictive team permissions');
       }
-      if (planLower === 'enterprise' && appKey === 'admin' && !req.context.enabledApps.includes(appKey)) {
-        // Check if admin permissions exist in DB
-        const existingAdminPerms = await prisma.permission.findMany({
-          where: { tenantId, appKey: 'admin' }
-        });
-        
-        if (existingAdminPerms.length === 0) {
-          // Auto-seed all Enterprise permissions for first-time admin access
-          const defaults = [
-            { appKey: 'admin', scopeKey: 'read' },
-            { appKey: 'admin', scopeKey: 'manage' },
-            { appKey: 'crm', scopeKey: 'read' },
-            { appKey: 'kanban', scopeKey: 'read' },
-            { appKey: 'email', scopeKey: 'read' },
-            { appKey: 'money', scopeKey: 'read' },
-            { appKey: 'todos', scopeKey: 'read' },
-            { appKey: 'files', scopeKey: 'read' }
-          ];
+      
+      // Auto-seed Enterprise permissions only for non-team members
+      if (!isInTeam) {
+        const ent = await getEntitlements(tenantId);
+        const planLower = (ent?.plan || '').toLowerCase().trim();
+        if ((planLower === 'enterprise_seats' || planLower === 'enterprise_unlimited') && appKey === 'admin' && !req.context.enabledApps.includes(appKey)) {
+          // Check if admin permissions exist in DB
+          const existingAdminPerms = await prisma.permission.findMany({
+            where: { tenantId, appKey: 'admin' }
+          });
           
-          await Promise.all(defaults.map(d =>
-            prisma.permission.upsert({
-              where: { tenantId_appKey_scopeKey: { tenantId, appKey: d.appKey, scopeKey: d.scopeKey } },
-              update: {},
-              create: { tenantId, appKey: d.appKey, scopeKey: d.scopeKey }
-            })
-          ));
-          
-          // Reload permissions after seeding
-          const r = await resolvePermissions({ tenantId, userId });
-          req.context.permissions = r.effective;
-          req.context.enabledApps = r.enabledApps;
-          req.context.roleName = r.roleName;
+          if (existingAdminPerms.length === 0) {
+            // Auto-seed all Enterprise permissions for first-time admin access
+            const defaults = [
+              { appKey: 'admin', scopeKey: 'read' },
+              { appKey: 'admin', scopeKey: 'manage' },
+              { appKey: 'crm', scopeKey: 'read' },
+              { appKey: 'kanban', scopeKey: 'read' },
+              { appKey: 'email', scopeKey: 'read' },
+              { appKey: 'money', scopeKey: 'read' },
+              { appKey: 'todos', scopeKey: 'read' },
+              { appKey: 'files', scopeKey: 'read' }
+            ];
+            
+            await Promise.all(defaults.map(d =>
+              prisma.permission.upsert({
+                where: { tenantId_appKey_scopeKey: { tenantId, appKey: d.appKey, scopeKey: d.scopeKey } },
+                update: {},
+                create: { tenantId, appKey: d.appKey, scopeKey: d.scopeKey }
+              })
+            ));
+            
+            // Reload permissions after seeding
+            const r = await resolvePermissions({ tenantId, userId });
+            req.context.permissions = r.effective;
+            req.context.enabledApps = r.enabledApps;
+            req.context.roleName = r.roleName;
+          }
         }
       }
       
@@ -134,6 +151,7 @@ const rbacGuard = (appKey, ...scopes) => {
         console.log(`[rbacGuard] REJECTING: App '${appKey}' not in enabledApps`);
         return res.status(403).json({ 
           error: 'App disabled for user',
+          code: 'UPGRADE_REQUIRED',
           detail: `App '${appKey}' is not enabled. Enabled apps: ${req.context.enabledApps.join(', ')}`
         });
       }
@@ -146,6 +164,7 @@ const rbacGuard = (appKey, ...scopes) => {
         console.log(`[rbacGuard] REJECTING: Insufficient permission. Required: ${required}, hasPermissions: ${hasPermissions.join(', ')}`);
         return res.status(403).json({ 
           error: 'Insufficient permission',
+          code: 'UPGRADE_REQUIRED',
           detail: `Required: ${required}`,
           enabledApps: req.context.enabledApps,
           hasApp: req.context.enabledApps.includes(appKey),

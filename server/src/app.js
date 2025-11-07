@@ -13,10 +13,15 @@ const imageRoutes = require('./modules/image/image.routes');
 const permissionsRoutes = require('./modules/permissions/permissions.routes');
 const teamRoutes = require('./routes/teamRoutes');
 const auditRoutes = require('./routes/auditRoutes');
+const billingStatusRoutes = require('./routes/billingStatus');
 
 dotenv.config();
+const billingWebhook = require('./billing/webhook');
 
 const app = express();
+
+// Stripe webhook must be before json parser
+app.use('/api/billing', billingWebhook);
 
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
@@ -26,6 +31,7 @@ app.get('/', (_req, res) => res.send('Hello, Eterna Platform!'));
 app.use('/api/todos', todoRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/email', emailRoutes);
+app.use('/api/billing', require('./billing/routes'));
 app.use('/api/kanban', kanbanRoutes);
 app.use("/api/crm", crmRoutes);
 app.use("/api/googlesheets", googlesheetsRoutes);
@@ -34,5 +40,6 @@ app.use('/api/image', imageRoutes);
 app.use('/api/permissions', permissionsRoutes);
 app.use('/api/teams', teamRoutes);
 app.use('/api/audit', auditRoutes);
+app.use('/api', billingStatusRoutes);
 
 module.exports = app;

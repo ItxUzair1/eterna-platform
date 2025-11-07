@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { crmApi } from "../../services/crmService";
-import { listUsers } from "../../services/userService";
+import { listOwnersMinimal } from "../../services/userService";
 import { ChevronDown, ChevronUp, Filter, MoreHorizontal, Plus, Search, Upload, User2, Download, X, Settings2 } from "lucide-react";
 import { usePermission } from "../auth/usePermission";
 import clsx from "clsx";
@@ -110,7 +110,7 @@ export default function LeadTable({ onOpenDrawer, onOpenImport }) {
       const [{ data: listRes }, { data: statusRes }, users] = await Promise.all([
         crmApi.listLeads(params),
         crmApi.listStatuses(),
-        listUsers().catch(() => [])
+        listOwnersMinimal().catch(() => [])
       ]);
       
       // Only update state if request wasn't aborted

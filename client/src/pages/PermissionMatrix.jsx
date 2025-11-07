@@ -6,7 +6,7 @@ import Toggle from '../components/Toggle';
 import { PrimaryButton, SubtleButton } from '../components/GradientButton';
 import { useAuth } from '../context/AuthContext';
 
-const APPS = ['crm', 'kanban', 'email', 'money', 'todos', 'admin', 'files', 'notifications'];
+const APPS = ['crm', 'kanban', 'email', 'money', 'todos', 'admin', 'files', 'notifications', 'image', 'billing'];
 const SCOPES = ['read', 'write', 'manage'];
 
 export default function PermissionsMatrix() {
@@ -71,8 +71,11 @@ export default function PermissionsMatrix() {
         const [appKey, scopeKey] = k.split(':');
         return { appKey, scopeKey, enabled };
       });
-      await updateUserMatrix(userId, changes);
+      const res = await updateUserMatrix(userId, changes);
+      // Reload matrix after save to reflect changes
+      setMatrix(res?.matrix || {});
       setDirty({});
+      alert('Permissions updated successfully!');
     } catch (err) {
       console.error('Failed to save', err);
       alert('Failed to save changes');

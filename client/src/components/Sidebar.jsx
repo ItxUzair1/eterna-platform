@@ -1,12 +1,14 @@
 // src/components/Sidebar.jsx
 import { NavLink, useNavigate } from "react-router-dom";
-import { useContext, useEffect, useMemo, useRef } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { ClipboardList, Image, Menu, LogOut, Mail, Layout, Shield, DollarSign } from "lucide-react";
 import { AuthContext } from "../context/AuthContext";
+import http from "../services/api";
+import useBillingStore from "../store/billingStore";
 
 const ALL_ITEMS = [
   { to: "/dashboard/todo", key: "todos", label: "To-Do App", icon: <ClipboardList className="w-5 h-5" /> },
-  { to: "/dashboard/image-converter", key: "files", label: "Image Converter", icon: <Image className="w-5 h-5" /> },
+  { to: "/dashboard/image-converter", key: "image", label: "Image Converter", icon: <Image className="w-5 h-5" /> },
   { to: "/dashboard/email", key: "email", label: "Email", icon: <Mail className="w-5 h-5" /> },
   { to: "/dashboard/kanban", key: "kanban", label: "Kanban", icon: <Layout className="w-5 h-5" /> },
   { to: "/dashboard/crm", key: "crm", label: "CRM", icon: <Layout className="w-5 h-5" /> },
@@ -19,11 +21,37 @@ export default function Sidebar({ isOpen, collapsed, onToggleCollapse, onCloseMo
   const navigate = useNavigate();
   const drawerRef = useRef(null);
   const { enabledApps = [] } = useContext(AuthContext) || {};
+  const [lifecycleState, setLifecycleState] = useState(null);
+  const [billingStatus, setBillingStatus] = useState(null);
+  const [plan, setPlan] = useState(null);
+
+  // Fetch billing to know if we are in trial; refresh on window focus as well
+  useEffect(() => {
+    let mounted = true;
+    const fetchBilling = () => {
+      http.get('/me/billing').then(r => {
+        if (!mounted) return;
+        setLifecycleState(r.data?.lifecycle_state || null);
+        setBillingStatus(r.data?.status || null);
+        setPlan(r.data?.plan || null);
+      }).catch(() => {});
+    };
+    fetchBilling();
+    const onFocus = () => fetchBilling();
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') fetchBilling();
+    });
+    return () => { mounted = false; window.removeEventListener('focus', onFocus); };
+  }, []);
 
   // Filter items by enabled apps; 'dashboard' key is not used here, so strictly RBAC-driven
   const items = useMemo(() => {
     return ALL_ITEMS.filter(i => enabledApps.includes(i.key));
   }, [enabledApps]);
+
+  const trialLocked = useMemo(() => new Set(["crm","kanban","email"]), []);
+  const isTrial = (lifecycleState === 'trial_active' || billingStatus === 'trialing') && !(plan === 'individual' || (plan || '').startsWith('enterprise'));
 
   const handleLogout = () => {
     localStorage.removeItem("accessToken");
@@ -86,8 +114,19 @@ export default function Sidebar({ isOpen, collapsed, onToggleCollapse, onCloseMo
           {/* Nav */}
           <nav className="mt-4 space-y-1 px-2" role="navigation" aria-label="Primary">
             {items.map(it => (
-              <SideItem key={it.to} to={it.to} icon={it.icon} collapsed={collapsed} label={it.label} />
+              <SideItem
+                key={it.to}
+                to={it.to}
+                icon={it.icon}
+                collapsed={collapsed}
+                label={it.label}
+                disabled={isTrial && trialLocked.has(it.key)}
+              />
             ))}
+            {/* Show Billing for enterprise/individual plans OR if admin app is enabled (but not during trial) */}
+            {((plan && (plan === 'individual' || plan.startsWith('enterprise'))) || enabledApps.includes('admin')) && !isTrial && (
+              <SideItem to="/billing" icon={<DollarSign className="w-5 h-5" />} collapsed={collapsed} label="Billing" />
+            )}
           </nav>
         </div>
 
@@ -107,14 +146,20 @@ export default function Sidebar({ isOpen, collapsed, onToggleCollapse, onCloseMo
   );
 }
 
-function SideItem({ to, icon, label, collapsed }) {
+function SideItem({ to, icon, label, collapsed, disabled }) {
+  const onClick = (e) => {
+    if (!disabled) return;
+    e.preventDefault();
+    useBillingStore.getState().openUpgradeModal({ code: 'UPGRADE_REQUIRED', attemptedAction: to });
+  };
   return (
     <NavLink
       to={to}
+      onClick={onClick}
       className={({ isActive }) =>
         `group flex items-center gap-3 px-3 py-2 rounded-md transition-colors
          outline-none focus-visible:ring-2 focus-visible:ring-indigo-500
-         hover:bg-gray-800 ${isActive ? "bg-gray-800 text-indigo-400 font-semibold" : "text-gray-300"}`
+         ${disabled ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-800'} ${isActive ? "bg-gray-800 text-indigo-400 font-semibold" : "text-gray-300"}`
       }
       aria-current={({ isActive }) => (isActive ? "page" : undefined)}
       title={label}

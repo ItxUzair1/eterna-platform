@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createRole,deleteRole,updateRole,listRoles } from '../services/permissionService';
 
-const APPS = ['crm','kanban','email','money','todos','admin','files','notifications'];
+const APPS = ['crm','kanban','email','money','todos','admin','files','notifications','image','billing'];
 const SCOPES = ['read','write','manage'];
 
 export default function Roles() {

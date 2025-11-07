@@ -1,6 +1,7 @@
 // middlewares/authMiddleware.js
 const jwt = require("jsonwebtoken");
 const prisma = require("../config/db");
+const { getEntitlements } = require("../entitlements/middleware");
 
 const verifyToken = async (req, res, next) => {
   try {
@@ -40,18 +41,16 @@ const verifyToken = async (req, res, next) => {
       return res.status(401).json({ error: 'Invalid token: token version mismatch' });
     }
 
-    // Load tenant plan for plan guard
-    const tenant = await prisma.tenant.findUnique({
-      where: { id: user.tenantId },
-      select: { plan: true }
-    });
+    // Load entitlements (plan, seats, lifecycle_state)
+    const entitlements = await getEntitlements(user.tenantId);
 
     req.user = decoded;
     req.context = {
       tenantId: user.tenantId,
       userId: user.id,
       roleId: user.roleId,
-      plan: tenant?.plan || null,          // <-- critical for requireEnterprise()
+      plan: entitlements?.plan || null,
+      lifecycle_state: entitlements?.lifecycle_state || null,
       enabledApps: [],
       permissions: []
     };

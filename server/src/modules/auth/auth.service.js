@@ -13,16 +13,18 @@ const makeToken = () => crypto.randomBytes(32).toString('hex');
 
 // modules/auth/auth.service.js (snippet)
 const createTenantWithOwner = async ({ email, username, password, roleName, profile }) => {
-  return await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const exists = await tx.user.findUnique({ where: { email } });
     if (exists) throw new Error('User already exists');
 
-    // Infer plan from roleName or explicit profile flag (adjust to your signup payload)
+    // Infer plan intent (not stored on tenant; used for default permissions only)
     const plan = (profile?.plan || (roleName === 'Owner' ? 'Enterprise' : 'Individual'));
 
-    // Create tenant with plan
+    // Create tenant with trial fields and lifecycle state
+    const now = new Date();
+    const ends = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     const tenant = await tx.tenant.create({
-      data: { name: profile?.enterpriseName || `${username}'s Org`, plan }
+      data: { name: profile?.enterpriseName || `${username}'s Org`, trial_started_at: now, trial_ends_at: ends, lifecycle_state: 'trial_active' }
     });
 
     // Ensure role exists for this tenant
@@ -99,6 +101,14 @@ const createTenantWithOwner = async ({ email, username, password, roleName, prof
 
     return { tenant, user, verifyToken: raw };
   });
+
+  // Schedule trial expiration jobs AFTER transaction commits
+  const { startTrialForTenant } = require('../../jobs/trialScheduler');
+  startTrialForTenant(result.tenant.id).catch(err => {
+    console.error('[auth] Failed to start trial scheduler:', err.message);
+  });
+
+  return result;
 };
 
 
