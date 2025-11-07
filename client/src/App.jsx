@@ -10,6 +10,7 @@ import SettingsAccount from "./pages/SettingsAccount";
 import EmailSettings from "./pages/EmailSettings";
 import Integrations from "./pages/Integrations";
 import DashboardLayout from "./layouts/DashboardLayout";
+import DashboardHome from "./pages/DashboardHome";
 import Email from "./pages/Email";
 import Kanban from "./pages/Kanban";
 import Todo from "./pages/Todo";
@@ -31,7 +32,7 @@ export default function App() {
   return (
     <Routes>
       {/* Public auth routes */}
-      <Route path="/" element={<Login />} />
+      <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/verify-email" element={<VerifyEmail />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -41,7 +42,7 @@ export default function App() {
       {/* Protected dashboard tree */}
       <Route element={<PrivateRoute />}>
         <Route path="/dashboard" element={<DashboardLayout />}>
-          <Route index element={<div className="p-6">Welcome to Eterna</div>} />
+          <Route index element={<DashboardHome />} />
           <Route path="email" element={<Email />} />
           <Route path="kanban" element={<Kanban />} />
           <Route path="todo" element={<Todo />} />

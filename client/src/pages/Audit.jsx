@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../services/api';
+import PageContainer from '../components/PageContainer';
+import PageHeader from '../components/PageHeader';
 
 export default function Audit() {
   const [rows, setRows] = useState([]);
@@ -9,9 +11,12 @@ export default function Audit() {
   };
   useEffect(() => { load(); }, []);
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-semibold mb-4">Audit Log</h1>
-      <div className="border rounded-lg overflow-x-auto">
+    <PageContainer>
+      <PageHeader
+        title="Audit Log"
+        description="View all permission changes and administrative actions"
+      />
+      <div className="section-card overflow-x-auto">
         <table className="min-w-full">
           <thead className="bg-slate-50 text-left text-sm text-slate-600">
             <tr><th className="p-3">Time</th><th className="p-3">Actor</th><th className="p-3">Action</th><th className="p-3">Target</th><th className="p-3">Diff</th></tr>
@@ -29,6 +34,6 @@ export default function Audit() {
           </tbody>
         </table>
       </div>
-    </div>
+    </PageContainer>
   );
 }

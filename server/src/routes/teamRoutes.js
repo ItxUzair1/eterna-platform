@@ -8,6 +8,7 @@ const { audit } = require('../utils/audit');
 const { sendEmail } = require('../modules/email/email.service');
 const crypto = require('crypto');
 const { sha256 } = require('../utils/tokens');
+const { createNotification } = require('../utils/notify');
 
 router.use(verifyToken, requireEnterprise());
 
@@ -53,6 +54,14 @@ router.post('/', rbacGuard('admin', 'manage'), async (req, res) => {
     });
     
     await audit({ tenantId: req.context.tenantId, userId: req.context.userId }, 'teams.create', 'Team', team.id, { name });
+    await createNotification({
+      tenantId: req.context.tenantId,
+      userId: req.context.userId,
+      type: 'success',
+      title: 'Team created',
+      message: `Team "${name}" has been created successfully.`,
+      data: { teamId: team.id, teamName: name }
+    });
     res.status(201).json({ team });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -85,6 +94,14 @@ router.put('/:teamId', rbacGuard('admin', 'manage'), async (req, res) => {
     });
     
     await audit({ tenantId: req.context.tenantId, userId: req.context.userId }, 'teams.update', 'Team', updated.id, { name });
+    await createNotification({
+      tenantId: req.context.tenantId,
+      userId: req.context.userId,
+      type: 'info',
+      title: 'Team updated',
+      message: `Team "${name}" has been updated.`,
+      data: { teamId: updated.id, teamName: name }
+    });
     res.json({ team: updated });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -103,6 +120,14 @@ router.delete('/:teamId', rbacGuard('admin', 'manage'), async (req, res) => {
     
     await prisma.team.delete({ where: { id: +teamId } });
     await audit({ tenantId: req.context.tenantId, userId: req.context.userId }, 'teams.delete', 'Team', +teamId, {});
+    await createNotification({
+      tenantId: req.context.tenantId,
+      userId: req.context.userId,
+      type: 'warning',
+      title: 'Team deleted',
+      message: `Team "${team.name}" has been deleted.`,
+      data: { teamId: +teamId, teamName: team.name }
+    });
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -132,6 +157,26 @@ router.post('/:teamId/members', rbacGuard('admin', 'manage'), async (req, res) =
     });
     
     await audit({ tenantId: req.context.tenantId, userId: req.context.userId }, 'teams.add_member', 'TeamMember', member.id, { teamId: +teamId, userId: +userId });
+    // Notify the user who was added
+    await createNotification({
+      tenantId: req.context.tenantId,
+      userId: +userId,
+      type: 'info',
+      title: 'Added to team',
+      message: `You have been added to the team "${team.name}".`,
+      data: { teamId: +teamId, teamName: team.name }
+    });
+    // Notify the admin who added them
+    if (req.context.userId !== +userId) {
+      await createNotification({
+        tenantId: req.context.tenantId,
+        userId: req.context.userId,
+        type: 'success',
+        title: 'Member added to team',
+        message: `${user.firstName || user.username || user.email} has been added to "${team.name}".`,
+        data: { teamId: +teamId, teamName: team.name, userId: +userId }
+      });
+    }
     res.json({ member });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -153,6 +198,28 @@ router.delete('/:teamId/members/:userId', rbacGuard('admin', 'manage'), async (r
     });
     
     await audit({ tenantId: req.context.tenantId, userId: req.context.userId }, 'teams.remove_member', 'TeamMember', null, { teamId: +teamId, userId: +userId });
+    // Get user info for notification
+    const removedUser = await prisma.user.findUnique({ where: { id: +userId }, select: { firstName: true, username: true, email: true } });
+    // Notify the user who was removed
+    await createNotification({
+      tenantId: req.context.tenantId,
+      userId: +userId,
+      type: 'warning',
+      title: 'Removed from team',
+      message: `You have been removed from the team "${team.name}".`,
+      data: { teamId: +teamId, teamName: team.name }
+    });
+    // Notify the admin who removed them
+    if (req.context.userId !== +userId) {
+      await createNotification({
+        tenantId: req.context.tenantId,
+        userId: req.context.userId,
+        type: 'info',
+        title: 'Member removed from team',
+        message: `${removedUser?.firstName || removedUser?.username || removedUser?.email || 'User'} has been removed from "${team.name}".`,
+        data: { teamId: +teamId, teamName: team.name, userId: +userId }
+      });
+    }
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -185,6 +252,26 @@ router.post('/:teamId/invite', rbacGuard('admin', 'manage'), async (req, res) =>
         create: { teamId: +teamId, userId: existingUser.id }
       });
       await audit({ tenantId: req.context.tenantId, userId: req.context.userId }, 'teams.add_member', 'TeamMember', null, { teamId: +teamId, userId: existingUser.id });
+      // Notify the user
+      await createNotification({
+        tenantId: req.context.tenantId,
+        userId: existingUser.id,
+        type: 'info',
+        title: 'Added to team',
+        message: `You have been added to the team "${team.name}".`,
+        data: { teamId: +teamId, teamName: team.name }
+      });
+      // Notify the admin
+      if (req.context.userId !== existingUser.id) {
+        await createNotification({
+          tenantId: req.context.tenantId,
+          userId: req.context.userId,
+          type: 'success',
+          title: 'Member added to team',
+          message: `${existingUser.firstName || existingUser.username || existingUser.email} has been added to "${team.name}".`,
+          data: { teamId: +teamId, teamName: team.name, userId: existingUser.id }
+        });
+      }
       return res.json({ ok: true, message: 'User added to team' });
     }
     
@@ -231,6 +318,14 @@ router.post('/:teamId/invite', rbacGuard('admin', 'manage'), async (req, res) =>
     });
     
     await audit({ tenantId: req.context.tenantId, userId: req.context.userId }, 'teams.invite_member', 'Team', +teamId, { email, teamName: team.name });
+    await createNotification({
+      tenantId: req.context.tenantId,
+      userId: req.context.userId,
+      type: 'success',
+      title: 'Team invitation sent',
+      message: `Invitation sent to ${email} to join "${team.name}".`,
+      data: { teamId: +teamId, teamName: team.name, email }
+    });
     res.json({ ok: true, message: 'Invitation sent' });
   } catch (err) {
     console.error('Team invite error:', err);

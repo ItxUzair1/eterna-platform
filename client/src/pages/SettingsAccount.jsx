@@ -1,13 +1,14 @@
 // client/src/pages/SettingsAccount.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   getMe,
   updateProfile,
   uploadPhoto,
-  changeEmail,
   changePassword,
 } from "../services/authService";
+import PageContainer from "../components/PageContainer";
+import PageHeader from "../components/PageHeader";
 
 export default function SettingsAccount() {
   const navigate = useNavigate();
@@ -15,6 +16,7 @@ export default function SettingsAccount() {
   const [toast, setToast] = useState({ type: "", text: "" });
   const [busy, setBusy] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     (async () => setMe(await getMe()))();
@@ -38,22 +40,6 @@ export default function SettingsAccount() {
       flash("ok", "Profile updated");
     } catch (e) {
       flash("err", e?.response?.data?.error || "Failed to update profile");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const reqEmailChange = async (e) => {
-    e.preventDefault();
-    setBusy(true);
-    try {
-      await changeEmail(me.email?.trim());
-      flash("ok", "Verification link sent to your email");
-    } catch (e) {
-      flash(
-        "err",
-        e?.response?.data?.error || "Failed to request email change"
-      );
     } finally {
       setBusy(false);
     }
@@ -178,17 +164,12 @@ export default function SettingsAccount() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-slate-50 to-cyan-50">
-      {/* Gradient header bar */}
-      <div className="bg-gradient-to-r from-indigo-600 via-violet-600 to-cyan-500 shadow-lg">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-8">
-          <h2 className="text-white text-2xl sm:text-3xl font-semibold">
-            Account Settings
-          </h2>
-        </div>
-      </div>
-
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 -mt-6 space-y-4 sm:space-y-6">
+    <PageContainer>
+      <PageHeader
+        title="Account Settings"
+        description="Manage your profile, security, and preferences"
+      />
+      <div className="space-y-4 sm:space-y-6">
         <Banner />
 
         {/* Actions row */}
@@ -258,16 +239,22 @@ export default function SettingsAccount() {
                   )}
                 </div>
                 <div>
-                  <label className="inline-flex items-center justify-center rounded-xl px-4 py-2 bg-gradient-to-r from-indigo-500 via-violet-500 to-cyan-500 hover:from-indigo-600 hover:via-violet-600 hover:to-cyan-600 text-white font-medium shadow-sm hover:shadow-md active:scale-[0.98] transition-all cursor-pointer">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handlePhotoUpload}
-                      className="hidden"
-                      disabled={uploadingPhoto}
-                    />
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoUpload}
+                    className="hidden"
+                    disabled={uploadingPhoto}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingPhoto}
+                    className="inline-flex items-center justify-center rounded-xl px-4 py-2 bg-gradient-to-r from-indigo-500 via-violet-500 to-cyan-500 hover:from-indigo-600 hover:via-violet-600 hover:to-cyan-600 text-white font-medium shadow-sm hover:shadow-md active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
                     {uploadingPhoto ? 'Uploading...' : 'Upload Photo'}
-                  </label>
+                  </button>
                   <p className="text-xs text-slate-500 mt-1">JPG, PNG or GIF. Max 5MB.</p>
                 </div>
               </div>
@@ -303,24 +290,7 @@ export default function SettingsAccount() {
           </Card>
 
           {/* Security */}
-          <Card title="Security" desc="Email and password controls.">
-            <form onSubmit={reqEmailChange} className="space-y-4 mb-6">
-              <Input
-                label="Email"
-                type="email"
-                value={me.email}
-                onChange={(e) =>
-                  setMe((m) => ({ ...m, email: e.target.value }))
-                }
-                hint="After changing your email, you'll need to reconfigure your email module settings."
-              />
-              <div className="flex justify-end">
-                <Button tone="sky" type="submit">
-                  Request email change
-                </Button>
-              </div>
-            </form>
-
+          <Card title="Security" desc="Manage your password.">
             <form onSubmit={doChangePassword} className="space-y-4">
               <div className="grid sm:grid-cols-2 gap-4">
                 <Input
@@ -351,6 +321,6 @@ export default function SettingsAccount() {
           Tip: You can revisit these settings anytime from the top-right menu.
         </div>
       </div>
-    </div>
+    </PageContainer>
   );
 }

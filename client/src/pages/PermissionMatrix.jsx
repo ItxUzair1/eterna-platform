@@ -5,6 +5,8 @@ import { listUsers } from '../services/userService';
 import Toggle from '../components/Toggle';
 import { PrimaryButton, SubtleButton } from '../components/GradientButton';
 import { useAuth } from '../context/AuthContext';
+import PageContainer from '../components/PageContainer';
+import PageHeader from '../components/PageHeader';
 
 const APPS = ['crm', 'kanban', 'email', 'money', 'todos', 'admin', 'files', 'notifications', 'image', 'billing'];
 const SCOPES = ['read', 'write', 'manage'];
@@ -88,16 +90,11 @@ export default function PermissionsMatrix() {
   const selectedUser = users.find(u => u.id === parseInt(userId));
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50/30 to-purple-50/30 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 bg-clip-text text-transparent">
-              Permissions Management
-            </h1>
-            <p className="text-slate-600 mt-1">Manage user permissions and app access</p>
-          </div>
+    <PageContainer>
+      <PageHeader
+        title="Permissions Management"
+        description="Manage user permissions and app access"
+        actions={
           <div className="flex gap-2">
             <SubtleButton onClick={() => setDirty({})} disabled={!hasChanges}>
               Discard
@@ -106,7 +103,8 @@ export default function PermissionsMatrix() {
               {saving ? 'Saving...' : 'Save Changes'}
             </PrimaryButton>
           </div>
-        </div>
+        }
+      />
 
         {/* User Selector */}
         <div className="rounded-2xl border border-white/60 bg-white/80 backdrop-blur-xl shadow-xl p-6">
@@ -195,7 +193,6 @@ export default function PermissionsMatrix() {
             Select a user to manage their permissions
           </div>
         )}
-      </div>
-    </div>
+    </PageContainer>
   );
 }

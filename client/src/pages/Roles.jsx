@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createRole,deleteRole,updateRole,listRoles } from '../services/permissionService';
+import PageContainer from '../components/PageContainer';
+import PageHeader from '../components/PageHeader';
 
 const APPS = ['crm','kanban','email','money','todos','admin','files','notifications','image','billing'];
 const SCOPES = ['read','write','manage'];
@@ -21,13 +23,16 @@ export default function Roles() {
   const create = async () => { await createRole(form); setForm({ name:'', description:'', defaults:[] }); load(); };
 
   return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-semibold">Roles</h1>
+    <PageContainer>
+      <PageHeader
+        title="Roles Management"
+        description="Create and manage roles with default permissions"
+      />
       <div className="grid md:grid-cols-3 gap-6">
-        <div className="border rounded-lg p-4">
+        <div className="section-card">
           <h2 className="font-medium mb-3">Create Role</h2>
-          <input className="border rounded-md px-3 py-2 w-full mb-2" placeholder="Name" value={form.name} onChange={e=>setForm({...form, name:e.target.value})} />
-          <input className="border rounded-md px-3 py-2 w-full mb-3" placeholder="Description" value={form.description} onChange={e=>setForm({...form, description:e.target.value})} />
+          <input className="w-full rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 px-4 py-3 outline-none ring-0 transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 mb-3" placeholder="Name" value={form.name} onChange={e=>setForm({...form, name:e.target.value})} />
+          <input className="w-full rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 px-4 py-3 outline-none ring-0 transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 mb-4" placeholder="Description" value={form.description} onChange={e=>setForm({...form, description:e.target.value})} />
           <div className="space-y-2">
             {APPS.map(a => (
               <div key={a}>
@@ -37,7 +42,7 @@ export default function Roles() {
                     const on = !!form.defaults.find(d => d.appKey===a && d.scopeKey===s);
                     return (
                       <button key={s} onClick={()=>toggle(a,s)}
-                        className={`px-2 py-1 rounded border text-sm ${on ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-700'}`}>
+                        className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition ${on ? 'bg-indigo-500 text-white border-indigo-500 shadow-lg shadow-indigo-900/40' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>
                         {s}
                       </button>
                     );
@@ -46,9 +51,9 @@ export default function Roles() {
               </div>
             ))}
           </div>
-          <button onClick={create} className="mt-4 px-4 py-2 rounded-md bg-indigo-600 text-white">Create</button>
+          <button onClick={create} className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white font-medium px-4 py-3 transition shadow-lg shadow-indigo-900/40">Create Role</button>
         </div>
-        <div className="md:col-span-2 border rounded-lg p-4">
+        <div className="md:col-span-2 section-card">
           <h2 className="font-medium mb-3">Existing Roles</h2>
           <ul className="divide-y">
             {roles.map(r => (
@@ -58,13 +63,13 @@ export default function Roles() {
                   <div className="text-slate-500 text-sm">{r.description}</div>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={async ()=>{ await deleteRole(r.id); load(); }} className="px-3 py-1 rounded border text-red-600">Delete</button>
+                  <button onClick={async ()=>{ await deleteRole(r.id); load(); }} className="px-3 py-1.5 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 text-sm font-medium transition">Delete</button>
                 </div>
               </li>
             ))}
           </ul>
         </div>
       </div>
-    </div>
+    </PageContainer>
   );
 }

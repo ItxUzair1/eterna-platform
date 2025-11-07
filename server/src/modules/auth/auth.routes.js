@@ -33,6 +33,9 @@ router.post('/me/photo', verifyToken, (req, res, next) => {
       if (err.code === 'LIMIT_UNEXPECTED_FILE') {
         return res.status(400).json({ error: 'Unexpected file field. Please use the "photo" field.' });
       }
+      if (err.code === 'SPACES_CONFIG_MISSING') {
+        return res.status(500).json({ error: err.message || 'DigitalOcean Spaces is not configured on the server.' });
+      }
       if (err.message && err.message.includes('Spaces')) {
         return res.status(500).json({ error: 'Storage configuration error. Please check server logs.' });
       }
@@ -41,7 +44,6 @@ router.post('/me/photo', verifyToken, (req, res, next) => {
     next();
   });
 }, ctrl.uploadPhoto);
-router.post('/me/change-email', verifyToken, ctrl.changeEmail);
 router.post('/me/change-password', verifyToken, ctrl.changePassword);
 router.post('/refresh', rateLimiter(r => `refresh:${r.ip}`, 30, 60000), ctrl.refresh);
 

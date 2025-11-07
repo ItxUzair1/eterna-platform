@@ -59,8 +59,19 @@ function uniqueKey(prefix, originalName) {
 
 function spacesUploadMiddleware(field = 'file', { maxCount = 1, prefix = 'uploads' } = {}) {
 	// Check Spaces configuration
-	if (!SPACES_BUCKET || !SPACES_KEY || !SPACES_SECRET || !SPACES_ENDPOINT) {
-		console.error('[spaces] Missing Spaces configuration. Uploads will fail.');
+	const missing = [];
+	if (!SPACES_ENDPOINT) missing.push('SPACES_ENDPOINT');
+	if (!SPACES_BUCKET) missing.push('SPACES_BUCKET');
+	if (!SPACES_KEY) missing.push('SPACES_ACCESS_KEY');
+	if (!SPACES_SECRET) missing.push('SPACES_SECRET_KEY');
+	if (missing.length) {
+		console.error('[spaces] Missing configuration:', missing.join(', '));
+		// Return middleware that immediately fails with clear error
+		return (_req, res, next) => {
+			const err = new Error('DigitalOcean Spaces is not configured on the server. Missing: ' + missing.join(', '));
+			err.code = 'SPACES_CONFIG_MISSING';
+			next(err);
+		};
 	}
 	
 	const storage = multerS3({

@@ -1,5 +1,6 @@
 // server/src/modules/todo/todo.controller.js
 const todoService = require('./todo.service');
+const { createNotification } = require('../../utils/notify');
 const { successResponse, errorResponse } = require('../../utils/responseHandler');
 
 const ALLOWED_STATUS = ['New', 'In Progress', 'Pending', 'Completed', 'Cancelled'];
@@ -55,6 +56,14 @@ async createTodo(req, res) {
 
 
     const todo = await todoService.createTodo(payload);
+    await createNotification({
+      tenantId: req.user.tenantId,
+      userId: req.user.id,
+      type: 'success',
+      title: 'Todo created',
+      message: `"${todo.title}" has been added to your todo list.`,
+      data: { todoId: todo.id }
+    });
     return successResponse(res, todo, 'Todo created successfully', 201);
   } catch (error) {
     console.error(" Create Todo Error:", error); // <-- ADD THIS
@@ -81,6 +90,25 @@ async createTodo(req, res) {
       };
 
       const todo = await todoService.updateTodo(id, tenantId, userId, data);
+      if (data.status === 'Completed') {
+        await createNotification({
+          tenantId,
+          userId,
+          type: 'success',
+          title: 'Todo completed',
+          message: `Great job! "${todo.title}" is marked as completed.`,
+          data: { todoId: todo.id }
+        });
+      } else {
+        await createNotification({
+          tenantId,
+          userId,
+          type: 'info',
+          title: 'Todo updated',
+          message: `"${todo.title}" has been updated.`,
+          data: { todoId: todo.id }
+        });
+      }
       return successResponse(res, todo, 'Todo updated successfully');
     } catch (error) {
       return errorResponse(res, error.message, 400);
@@ -92,6 +120,14 @@ async createTodo(req, res) {
       const { id } = req.params;
       const { tenantId, userId } = req.user;
       await todoService.deleteTodo(id, tenantId, userId);
+      await createNotification({
+        tenantId,
+        userId,
+        type: 'warning',
+        title: 'Todo deleted',
+        message: 'A todo has been removed from your list.',
+        data: { todoId: Number(id) }
+      });
       return successResponse(res, null, 'Todo deleted successfully');
     } catch (error) {
       return errorResponse(res, error.message, 404);

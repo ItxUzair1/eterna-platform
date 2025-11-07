@@ -1,0 +1,27 @@
+body {
+  @apply bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100;
+}
+
+.page-container {
+  @apply space-y-8;
+}
+
+.section-card {
+  @apply rounded-2xl border border-slate-200/60 bg-white/90 backdrop-blur shadow-lg shadow-indigo-500/5 px-6 py-5 dark:border-slate-800/60 dark:bg-slate-900/70;
+}
+
+.stat-card {
+  @apply rounded-2xl border border-indigo-100 bg-white/95 backdrop-blur shadow-lg shadow-indigo-200/40 p-5 flex flex-col gap-2 dark:bg-slate-900/80 dark:border-indigo-500/30;
+}
+
+.gradient-surface {
+  background: radial-gradient(circle at 20% 20%, rgba(99, 102, 241, 0.25), transparent 55%),
+              radial-gradient(circle at 80% 0%, rgba(236, 72, 153, 0.18), transparent 45%),
+              radial-gradient(circle at 10% 80%, rgba(14, 165, 233, 0.2), transparent 45%),
+              linear-gradient(180deg, rgba(248, 250, 252, 0.95), rgba(241, 245, 249, 0.96));
+}
+
+.glass-panel {
+  @apply rounded-3xl border border-white/40 bg-white/65 backdrop-blur-xl shadow-xl shadow-indigo-100/60 dark:border-white/10 dark:bg-slate-900/70;
+}
+

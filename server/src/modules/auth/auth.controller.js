@@ -1,5 +1,6 @@
 const svc = require('../auth/auth.service')
 const prisma = require('../../config/db')
+const { createNotification } = require('../../utils/notify');
 
 const registerUser = async (req, res) => {
   try {
@@ -114,20 +115,27 @@ const me = async (req, res) => {
 const updateProfile = async (req, res) => {
   try {
     const out = await svc.updateProfile({ userId: req.context.userId, payload: req.body });
+    await createNotification({
+      tenantId: req.context.tenantId,
+      userId: req.context.userId,
+      type: 'success',
+      title: 'Profile updated',
+      message: 'Your profile information was updated successfully.'
+    });
     res.json({ user: out });
-  } catch (err) { res.status(400).json({ error: err.message }); }
-};
-
-const changeEmail = async (req, res) => {
-  try {
-    await svc.changeEmail({ userId: req.context.userId, newEmail: req.body.email });
-    res.json({ ok: true, message: 'Verify new email from inbox' });
   } catch (err) { res.status(400).json({ error: err.message }); }
 };
 
 const changePassword = async (req, res) => {
   try {
     await svc.changePassword({ userId: req.context.userId, oldPassword: req.body.oldPassword, newPassword: req.body.newPassword });
+    await createNotification({
+      tenantId: req.context.tenantId,
+      userId: req.context.userId,
+      type: 'info',
+      title: 'Password updated',
+      message: 'Your password has been changed successfully.'
+    });
     res.json({ ok: true });
   } catch (err) { res.status(400).json({ error: err.message }); }
 };
@@ -181,6 +189,13 @@ const uploadPhoto = async (req, res) => {
     
     // Add photoUrl to response
     user.photoUrl = photoUrl;
+    await createNotification({
+      tenantId: req.context.tenantId,
+      userId: req.context.userId,
+      type: 'info',
+      title: 'Profile photo updated',
+      message: 'Your profile picture has been updated.'
+    });
     
     res.json({ user });
   } catch (err) {
@@ -194,5 +209,5 @@ module.exports = {
   requestReset, resetPassword,
   enable2fa, useRecovery,
   invite, acceptInvite,
-  me, updateProfile, uploadPhoto, changeEmail, changePassword, refresh
+  me, updateProfile, uploadPhoto, changePassword, refresh
 };

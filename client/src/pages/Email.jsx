@@ -2,6 +2,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import DOMPurify from 'dompurify';
+import PageContainer from '../components/PageContainer';
+import PageHeader from '../components/PageHeader';
+import { useNotifications } from '../context/NotificationContext';
 import {
   sendEmail, saveDraft, sendDraft, updateDraft,
   getSentEmails, getDrafts, getTrash,
@@ -26,6 +29,7 @@ const tabs = [
 export default function Email() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { refresh: refreshNotifications } = useNotifications();
   const fileInputRef = useRef(null);
 
   const [tab, setTab] = useState('compose');
@@ -150,6 +154,7 @@ export default function Email() {
       clearComposeForm();
       setTab('sent');
       getSentEmails().then(r => setEmails(r.data));
+      refreshNotifications();
     } catch (err) {
       const errorMsg = err.response?.data?.error || err.message;
       setStatus('Error: ' + errorMsg);
@@ -172,6 +177,7 @@ export default function Email() {
     await saveEmailTemplate({ name: subject, subject, body });
     setStatus('Template saved successfully');
     getEmailTemplates().then(r => setTemplates(r.data));
+    refreshNotifications();
   };
   const handleSaveDraft = async () => {
     try {
@@ -269,109 +275,109 @@ export default function Email() {
   // Show configuration message if email is not configured
   if (emailConfigured === false) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6 text-center">
+      <PageContainer>
+        <div className="section-card text-center max-w-md mx-auto">
           <div className="mb-4">
             <svg className="mx-auto h-12 w-12 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
           </div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Email Configuration Required</h2>
-          <p className="text-gray-600 mb-6">
+          <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-2">Email Configuration Required</h2>
+          <p className="text-slate-600 dark:text-slate-400 mb-6">
             Please configure your email settings before using the email module.
           </p>
           <button
             onClick={() => navigate('/dashboard/email-settings')}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white font-medium px-4 py-3 transition shadow-lg shadow-indigo-900/40"
           >
             Go to Email Settings
           </button>
         </div>
-      </div>
+      </PageContainer>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Top App Bar */}
-      <header className="sticky top-0 z-30 bg-white/90 backdrop-blur border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h1 className="text-lg sm:text-xl font-semibold tracking-tight">Email</h1>
-            {/* Mobile Tabs (horizontally scrollable) */}
-            <nav className="ml-2 sm:hidden overflow-x-auto no-scrollbar">
-              <ul className="flex gap-1">
-                {tabs.map(t => (
-                  <li key={t.key}>
-                    <button
-                      onClick={() => setTab(t.key)}
-                      className={`px-3 py-1.5 text-sm rounded-full transition-colors
-                        ${tab === t.key ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
-                      aria-current={tab === t.key ? 'page' : undefined}
-                    >
-                      {t.label}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </nav>
-          </div>
+    <>
+    <PageContainer>
+      <PageHeader
+        title="Email Workspace"
+        description="Compose, send, and manage your emails with templates and automation"
+        actions={
           <button
             onClick={() => navigate('/dashboard/email-settings')}
-            className="px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+            className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 dark:bg-indigo-900/30 px-4 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition"
             title="Email Settings"
           >
             Settings
           </button>
-        </div>
-      </header>
+        }
+      />
 
-      {/* Body: Left rail + Content */}
-      <div className="flex-1">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="grid grid-cols-12 gap-6">
-            {/* Left Rail (desktop) */}
-            <aside className="hidden sm:block col-span-3 lg:col-span-2">
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm sticky top-[4.5rem]">
-                <nav className="p-2">
-                  {tabs.map(t => (
-                    <button
-                      key={t.key}
-                      onClick={() => setTab(t.key)}
-                      className={`w-full text-left px-3 py-2 rounded-lg text-sm mb-1 transition-colors
-                        ${tab === t.key ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'text-gray-700 hover:bg-gray-50'}`}
-                      aria-current={tab === t.key ? 'page' : undefined}
-                    >
-                      {t.label}
-                    </button>
-                  ))}
-                </nav>
-              </div>
-            </aside>
+      <div className="grid grid-cols-12 gap-6">
+        {/* Left Rail (desktop) */}
+        <aside className="hidden sm:block col-span-3 lg:col-span-2">
+          <div className="section-card sticky top-24">
+            <nav className="space-y-1">
+              {tabs.map(t => (
+                <button
+                  key={t.key}
+                  onClick={() => setTab(t.key)}
+                  className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors
+                    ${tab === t.key 
+                      ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700' 
+                      : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
+                  aria-current={tab === t.key ? 'page' : undefined}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </nav>
+          </div>
+        </aside>
 
-            {/* Main Content */}
-            <main className="col-span-12 sm:col-span-9 lg:col-span-10">
+        {/* Main Content */}
+        <main className="col-span-12 sm:col-span-9 lg:col-span-10">
+          {/* Mobile Tabs */}
+          <nav className="sm:hidden mb-4 overflow-x-auto no-scrollbar">
+            <div className="flex gap-2">
+              {tabs.map(t => (
+                <button
+                  key={t.key}
+                  onClick={() => setTab(t.key)}
+                  className={`px-3 py-1.5 text-sm rounded-full transition-colors whitespace-nowrap
+                    ${tab === t.key 
+                      ? 'bg-indigo-500 text-white' 
+                      : 'text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700'}`}
+                  aria-current={tab === t.key ? 'page' : undefined}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </nav>
               {/* Inbox */}
               {(tab === 'inbox' || tab === 'spam') && (
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-                  <div className="p-4 sm:p-6">
+                <div className="section-card">
+                  <div>
                     <div className="flex items-center justify-between mb-4">
                       <h2 className="text-base font-semibold text-gray-900">{tab === 'inbox' ? 'Inbox' : 'Spam'}</h2>
                       <button
                         onClick={async () => {
-                          try {
-                            setStatus('Syncing inbox...');
-                            await syncInbox({ sinceDays: 7, max: 200 });
-                            const r = await getInbox({ limit: 100 });
-                            const msgs = Array.isArray(r.data) ? r.data : [];
-                            setInbox(msgs.filter(m => m.folder === 'Inbox'));
-                            setSpam(msgs.filter(m => m.folder === 'Spam'));
-                            setStatus('Inbox synced');
+                         try {
+                           setStatus('Syncing inbox...');
+                           await syncInbox({ sinceDays: 7, max: 200 });
+                           const r = await getInbox({ limit: 100 });
+                           const msgs = Array.isArray(r.data) ? r.data : [];
+                           setInbox(msgs.filter(m => m.folder === 'Inbox'));
+                           setSpam(msgs.filter(m => m.folder === 'Spam'));
+                           setStatus('Inbox synced');
+                           refreshNotifications();
                           } catch (e) {
                             setStatus('Error syncing inbox: ' + (e.response?.data?.error || e.message));
                           }
                         }}
-                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded"
+                        className="inline-flex items-center gap-2 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-medium px-4 py-2 transition shadow-lg shadow-indigo-900/40"
                       >
                         Sync
                       </button>
@@ -398,25 +404,25 @@ export default function Email() {
                                 </div>
                               </div>
                               <div className="flex gap-2 items-start flex-shrink-0">
-                                <button
-                                  onClick={() => setViewingEmail(m)}
-                                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded"
-                                  type="button"
-                                >
-                                  Open
-                                </button>
-                                <button
-                                  onClick={() => moveMessage(m.id, 'Trash').then(async () => {
-                                    const r = await getInbox({ limit: 100 });
-                                    const msgs = Array.isArray(r.data) ? r.data : [];
-                                    setInbox(msgs.filter(x => x.folder === 'Inbox'));
-                                    setSpam(msgs.filter(x => x.folder === 'Spam'));
-                                  })}
-                                  className="px-3 py-1.5 text-gray-700 hover:bg-gray-100 text-sm font-medium rounded border border-gray-300"
-                                  type="button"
-                                >
-                                  Delete
-                                </button>
+                      <button
+                        onClick={() => setViewingEmail(m)}
+                        className="px-3 py-1.5 bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-medium rounded-lg transition"
+                        type="button"
+                      >
+                        Open
+                      </button>
+                      <button
+                        onClick={() => moveMessage(m.id, 'Trash').then(async () => {
+                          const r = await getInbox({ limit: 100 });
+                          const msgs = Array.isArray(r.data) ? r.data : [];
+                          setInbox(msgs.filter(x => x.folder === 'Inbox'));
+                          setSpam(msgs.filter(x => x.folder === 'Spam'));
+                        })}
+                        className="px-3 py-1.5 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-sm font-medium rounded-lg border border-slate-300 dark:border-slate-600 transition"
+                        type="button"
+                      >
+                        Delete
+                      </button>
                               </div>
                             </div>
                           </li>
@@ -446,15 +452,15 @@ export default function Email() {
 
               {/* Compose */}
               {tab === 'compose' && (
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+                <div className="section-card">
                   {editingDraftId && (
-                    <div className="px-4 sm:px-6 pt-4 pb-2 border-b border-gray-200 bg-blue-50">
+                    <div className="mb-4 pb-4 border-b border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/20 -mx-6 -mt-6 px-6 pt-4 rounded-t-2xl">
                       <p className="text-sm text-blue-800">
                         Editing draft. Changes will be saved when you click "Save Draft" or send the email.
                       </p>
                     </div>
                   )}
-                  <form onSubmit={handleSend} className="p-4 sm:p-6">
+                  <form onSubmit={handleSend}>
                     <div className="space-y-4">
                       {/* To */}
                       <div className="flex items-start gap-3">
@@ -602,21 +608,21 @@ export default function Email() {
                         <div className="flex items-center gap-2">
                           <button
                             type="submit"
-                            className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg"
+                            className="px-5 py-2 bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-medium rounded-lg transition shadow-lg shadow-indigo-900/40"
                           >
                             Send
                           </button>
                           <button
                             type="button"
                             onClick={handleSaveDraft}
-                            className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg"
+                            className="px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition border border-slate-200 dark:border-slate-700"
                           >
                             Save Draft
                           </button>
                           <button
                             type="button"
                             onClick={handleSaveTemplate}
-                            className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg"
+                            className="px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition border border-slate-200 dark:border-slate-700"
                           >
                             Save Template
                           </button>
@@ -630,7 +636,7 @@ export default function Email() {
                           />
                           <label
                             htmlFor="file-attachment"
-                            className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg cursor-pointer"
+                            className="px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg cursor-pointer transition border border-slate-200 dark:border-slate-700"
                           >
                             Attach
                           </label>
@@ -643,8 +649,8 @@ export default function Email() {
 
               {/* Sent */}
               {tab === 'sent' && (
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-                  <div className="p-4 sm:p-6">
+                <div className="section-card">
+                  <div>
                     {emails.length === 0 ? (
                       <div className="text-center py-12 text-gray-500">
                         <p className="text-base">No sent emails found.</p>
@@ -674,16 +680,16 @@ export default function Email() {
                                 />
                               </div>
                               <div className="flex gap-2 items-start flex-shrink-0">
-                                <button
-                                  onClick={() => {
-                                    console.log('Viewing email:', email);
-                                    setViewingEmail(email);
-                                  }}
-                                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded"
-                                  type="button"
-                                >
-                                  View
-                                </button>
+                        <button
+                          onClick={() => {
+                            console.log('Viewing email:', email);
+                            setViewingEmail(email);
+                          }}
+                          className="px-3 py-1.5 bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-medium rounded-lg transition"
+                          type="button"
+                        >
+                          View
+                        </button>
                                 {email.sentAt && (
                                   <div className="text-xs text-gray-500 whitespace-nowrap pt-1.5">
                                     {new Date(email.sentAt).toLocaleDateString()} {new Date(email.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -701,8 +707,8 @@ export default function Email() {
 
               {/* Drafts */}
               {tab === 'drafts' && (
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-                  <div className="p-4 sm:p-6">
+                <div className="section-card">
+                  <div>
                     {drafts.length === 0 ? (
                       <div className="text-center py-12 text-gray-500">
                         <p className="text-base">No drafts found.</p>
@@ -731,6 +737,7 @@ export default function Email() {
                                       setTab('sent');
                                       getSentEmails().then(r => setEmails(r.data));
                                       getDrafts().then(r => setDrafts(r.data));
+                                      refreshNotifications();
                                     } catch (err) {
                                       const errorMsg = err.response?.data?.error || err.message;
                                       setStatus('Error: ' + errorMsg);
@@ -755,19 +762,19 @@ export default function Email() {
                                       }
                                     }
                                   }}
-                                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded"
+                                  className="px-3 py-1.5 bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-medium rounded-lg transition"
                                 >
                                   Send
                                 </button>
                                 <button
                                   onClick={() => loadDraftForEdit(d)}
-                                  className="px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white text-sm font-medium rounded"
+                                  className="px-3 py-1.5 bg-slate-600 hover:bg-slate-700 text-white text-sm font-medium rounded-lg transition"
                                 >
                                   Edit
                                 </button>
                                 <button
                                   onClick={() => moveMessage(d.id, 'Trash').then(() => { setTab('trash'); getTrash().then(r => setTrash(r.data)); getDrafts().then(r => setDrafts(r.data)); })}
-                                  className="px-3 py-1.5 text-gray-700 hover:bg-gray-100 text-sm font-medium rounded border border-gray-300"
+                                  className="px-3 py-1.5 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-sm font-medium rounded-lg border border-slate-300 dark:border-slate-600 transition"
                                 >
                                   Delete
                                 </button>
@@ -783,8 +790,8 @@ export default function Email() {
 
               {/* Trash */}
               {tab === 'trash' && (
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-                  <div className="p-4 sm:p-6">
+                <div className="section-card">
+                  <div>
                     {trash.length === 0 ? (
                       <div className="text-center py-12 text-gray-500">
                         <p className="text-base">Trash is empty.</p>
@@ -828,8 +835,8 @@ export default function Email() {
 
               {/* Templates */}
               {tab === 'templates' && (
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-                  <div className="p-4 sm:p-6">
+                <div className="section-card">
+                  <div>
                     {templates.length === 0 ? (
                       <div className="text-center py-12 text-gray-500">
                         <p className="text-base">No templates found. Use “Save Template” in Compose.</p>
@@ -857,7 +864,7 @@ export default function Email() {
                               <div className="flex gap-2 flex-shrink-0">
                                 <button
                                   onClick={(e) => { e.stopPropagation(); applyTemplate(tpl.name); }}
-                                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded"
+                                  className="px-3 py-1.5 bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-medium rounded-lg transition"
                                 >
                                   Use
                                 </button>
@@ -874,7 +881,7 @@ export default function Email() {
                                       }
                                     }
                                   }}
-                                  className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded"
+                                  className="px-3 py-1.5 bg-red-500 hover:bg-red-400 text-white text-sm font-medium rounded-lg transition"
                                 >
                                   Delete
                                 </button>
@@ -892,16 +899,15 @@ export default function Email() {
               {status && (
                 <div className={`mt-4 px-4 py-3 rounded-lg text-sm font-medium ${
                   status.includes('Error')
-                    ? 'bg-red-50 text-red-700 border border-red-200'
-                    : 'bg-green-50 text-green-700 border border-green-200'
+                    ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'
+                    : 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800'
                 }`}>
                   {status}
                 </div>
               )}
             </main>
           </div>
-        </div>
-      </div>
+    </PageContainer>
 
       {/* Email View Modal */}
       {viewingEmail && (
@@ -988,7 +994,7 @@ export default function Email() {
                 <button
                   type="button"
                   onClick={() => setViewingEmail(null)}
-                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm"
+                  className="w-full inline-flex justify-center rounded-xl border border-transparent shadow-sm px-4 py-2 bg-indigo-500 text-base font-medium text-white hover:bg-indigo-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm transition"
                 >
                   Close
                 </button>
@@ -997,6 +1003,6 @@ export default function Email() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

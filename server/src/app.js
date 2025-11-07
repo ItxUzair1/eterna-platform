@@ -11,6 +11,7 @@ const googlesheetsRoutes = require("./modules/googlesheets/googlesheets.routes")
 const moneyRoutes = require("./modules/money/money.routes");
 const imageRoutes = require('./modules/image/image.routes');
 const permissionsRoutes = require('./modules/permissions/permissions.routes');
+const notificationRoutes = require('./modules/notifications/notification.routes');
 const teamRoutes = require('./routes/teamRoutes');
 const auditRoutes = require('./routes/auditRoutes');
 const billingStatusRoutes = require('./routes/billingStatus');
@@ -38,6 +39,7 @@ app.use("/api/googlesheets", googlesheetsRoutes);
 app.use("/api/money", moneyRoutes);
 app.use('/api/image', imageRoutes);
 app.use('/api/permissions', permissionsRoutes);
+app.use('/api/notifications', notificationRoutes);
 app.use('/api/teams', teamRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api', billingStatusRoutes);

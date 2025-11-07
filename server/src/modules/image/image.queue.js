@@ -9,6 +9,7 @@ const { getBroker } = require('./image.ss-broker');
 const { s3, uploadBufferToSpaces, uniqueKey } = require('../../utils/spaces');
 const { GetObjectCommand } = require('@aws-sdk/client-s3');
 const os = require('os');
+const { createNotification } = require('../../utils/notify');
 
 const prisma = new PrismaClient();
 
@@ -166,10 +167,36 @@ const worker = new Worker(
     } catch {}
 
     const anyDone = await prisma.convertJobItem.count({ where: { jobId, status: 'DONE' } });
+    const totalItems = jobRow.items.length;
+    const failedItems = await prisma.convertJobItem.count({ where: { jobId, status: 'FAILED' } });
+    const finalStatus = anyDone > 0 ? 'DONE' : 'FAILED';
+    
     await prisma.convertJob.update({
       where: { id: jobId },
-      data: { status: anyDone > 0 ? 'DONE' : 'FAILED', completedAt: new Date() }
+      data: { status: finalStatus, completedAt: new Date() }
     });
+    
+    // Create notification for job completion
+    if (finalStatus === 'DONE') {
+      await createNotification({
+        tenantId: jobRow.tenantId,
+        userId: jobRow.userId,
+        type: 'success',
+        title: 'Image conversion completed',
+        message: `${anyDone} of ${totalItems} image${totalItems > 1 ? 's' : ''} converted successfully.`,
+        data: { jobId, completed: anyDone, total: totalItems }
+      });
+    } else {
+      await createNotification({
+        tenantId: jobRow.tenantId,
+        userId: jobRow.userId,
+        type: 'error',
+        title: 'Image conversion failed',
+        message: `Conversion job failed. ${failedItems} of ${totalItems} image${totalItems > 1 ? 's' : ''} failed to convert.`,
+        data: { jobId, failed: failedItems, total: totalItems }
+      });
+    }
+    
     broker.emit('event', { type: 'job-done' });
   },
   { connection, concurrency: 2 }
