@@ -1,7 +1,7 @@
 // src/components/Sidebar.jsx
 import { NavLink, useNavigate } from "react-router-dom";
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
-import { ClipboardList, Image, Menu, LogOut, Mail, Layout, Shield, DollarSign } from "lucide-react";
+import { ClipboardList, Image, Menu, LogOut, Mail, Layout, Shield, DollarSign, CreditCard } from "lucide-react";
 import { AuthContext } from "../context/AuthContext";
 import http from "../services/api";
 import useBillingStore from "../store/billingStore";
@@ -13,6 +13,7 @@ const ALL_ITEMS = [
   { to: "/dashboard/kanban", key: "kanban", label: "Kanban", icon: <Layout className="w-5 h-5" /> },
   { to: "/dashboard/crm", key: "crm", label: "CRM", icon: <Layout className="w-5 h-5" /> },
   { to: "/dashboard/money", key: "money", label: "Money Management", icon: <DollarSign className="w-5 h-5" /> },
+  { to: "/billing", key: "billing", label: "Billing", icon: <CreditCard className="w-5 h-5" /> },
   // Admin appears only if enabled via RBAC (key: 'admin')
   { to: "/admin", key: "admin", label: "Admin", icon: <Shield className="w-5 h-5" /> }
 ];
@@ -20,7 +21,7 @@ const ALL_ITEMS = [
 export default function Sidebar({ isOpen, collapsed, onToggleCollapse, onCloseMobile }) {
   const navigate = useNavigate();
   const drawerRef = useRef(null);
-  const { enabledApps = [] } = useContext(AuthContext) || {};
+  const { enabledApps = [], permissions = {} } = useContext(AuthContext) || {};
   const [lifecycleState, setLifecycleState] = useState(null);
   const [billingStatus, setBillingStatus] = useState(null);
   const [plan, setPlan] = useState(null);
@@ -123,10 +124,6 @@ export default function Sidebar({ isOpen, collapsed, onToggleCollapse, onCloseMo
                 disabled={isTrial && trialLocked.has(it.key)}
               />
             ))}
-            {/* Show Billing for enterprise/individual plans OR if admin app is enabled (but not during trial) */}
-            {((plan && (plan === 'individual' || plan.startsWith('enterprise'))) || enabledApps.includes('admin')) && !isTrial && (
-              <SideItem to="/billing" icon={<DollarSign className="w-5 h-5" />} collapsed={collapsed} label="Billing" />
-            )}
           </nav>
         </div>
 

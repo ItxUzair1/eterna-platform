@@ -2,7 +2,7 @@ const prisma = require('../../config/db');
 const { audit } = require('../../utils/audit');
 const { getEntitlements } = require('../../entitlements/middleware');
 
-const APPS = ['crm','kanban','email','money','todos','admin','files','notifications','image'];
+const APPS = ['crm','kanban','email','money','billing','todos','admin','files','notifications','image'];
 const SCOPES = ['read','write','manage','convert'];
 
 function normalize(matrixRows) {
@@ -17,9 +17,29 @@ async function getUserMatrix({ tenantId, userId }) {
   const teamIds = (await prisma.teamMember.findMany({ where: { userId }, select: { teamId: true } })).map(x => x.teamId);
   const isInTeam = teamIds.length > 0;
   
+  // Check if user is the owner (first user created for this tenant)
+  const firstUser = await prisma.user.findFirst({
+    where: { tenantId },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true }
+  });
+  const isOwner = firstUser?.id === userId;
+  
+  // Get user permissions to check if admin has explicitly granted any permissions
+  const userPerms = await prisma.userPermission.findMany({ where: { userId } });
+  const hasExplicitPermissions = userPerms.length > 0;
+  
+  // For invited members NOT in a team: start with empty permissions (no apps) unless admin explicitly granted permissions
+  if (!isInTeam && !isOwner && !hasExplicitPermissions) {
+    // Invited member without team membership and no explicit permissions = no access
+    const matrix = normalize([]);
+    const enabledApps = [];
+    return { matrix, enabledApps };
+  }
+  
   // If user is in a team, skip plan-based auto-grants and go straight to team permissions
-  if (!isInTeam) {
-    // For Individual plan, grant read/write to all apps by default, but NOT during trial
+  if (!isInTeam && isOwner) {
+    // Owner gets full access based on plan
     const ent = await getEntitlements(tenantId);
     const planLower = (ent?.plan || '').toLowerCase().trim();
     const isTrial = ent?.lifecycle_state === 'trial_active';
@@ -44,7 +64,7 @@ async function getUserMatrix({ tenantId, userId }) {
     
     // Trial entitlements: enable Todo, Image Converter, Money; disable CRM, Kanban, Email
     if (isTrial) {
-      const trialRwApps = ['todos', 'image', 'money'];
+      const trialRwApps = ['todos', 'image', 'money', 'billing'];
       const rows = [
         ...trialRwApps.flatMap(a => ([
           { appKey: a, scopeKey: 'read', enabled: true },
@@ -66,16 +86,16 @@ async function getUserMatrix({ tenantId, userId }) {
     }
   }
   
-  // For team members OR fallback: use team/tenant defaults logic
+  // For team members OR users with explicit permissions: use team/tenant defaults logic
   const ent = await getEntitlements(tenantId);
   const planLower = (ent?.plan || '').toLowerCase().trim();
 
   const defaults = await prisma.permission.findMany({ where: { tenantId } });
   const team = teamIds.length ? await prisma.teamPermission.findMany({ where: { teamId: { in: teamIds } } }) : [];
-  const user = await prisma.userPermission.findMany({ where: { userId } });
 
   // If user is in ANY team, use ONLY team permissions (restrictive mode - even if empty)
-  // Only users NOT in any team get tenant defaults
+  // Owner gets tenant defaults + user overrides
+  // Invited members (not owner, not in team) get ONLY explicit user permissions (no tenant defaults)
   const grants = new Map();
   
   if (isInTeam) {
@@ -83,18 +103,27 @@ async function getUserMatrix({ tenantId, userId }) {
     team.forEach(p => { 
       if (p.enabled) grants.set(`${p.appKey}:${p.scopeKey}`, true); 
     });
-  } else {
-    // Start with tenant defaults (only for users not in any team)
+  } else if (isOwner) {
+    // Owner: start with tenant defaults, then apply user overrides
     defaults.forEach(p => grants.set(`${p.appKey}:${p.scopeKey}`, true));
   }
+  // For invited members (not owner, not in team): start with empty, only add explicit user permissions
   
-  // Apply user-specific overrides (can add or remove)
-  user.forEach(p => { const k = `${p.appKey}:${p.scopeKey}`; if (p.enabled) grants.set(k, true); else grants.delete(k); });
+  // Apply user-specific permissions (for invited members this is the only source)
+  // For owner/team members, this acts as overrides
+  userPerms.forEach(p => { 
+    const k = `${p.appKey}:${p.scopeKey}`; 
+    if (p.enabled) {
+      grants.set(k, true);
+    } else {
+      grants.delete(k);
+    }
+  });
 
   let effRows = [...grants.keys()].map(k => { const [appKey, scopeKey] = k.split(':'); return { appKey, scopeKey, enabled: true }; });
 
-  // Ensure Enterprise plans can access Admin by default
-  if (planLower.startsWith('enterprise')) {
+  // Ensure Enterprise plans can access Admin by default for owner only
+  if (!isInTeam && isOwner && planLower.startsWith('enterprise')) {
     const hasAdmin = effRows.some(r => r.appKey === 'admin');
     if (!hasAdmin) {
       effRows = effRows.concat([
@@ -105,7 +134,8 @@ async function getUserMatrix({ tenantId, userId }) {
   }
 
   const matrix = normalize(effRows);
-  const enabledApps = Object.keys(matrix).filter(a => SCOPES.some(s => matrix[a][s]));
+  // Only include apps that have 'read' permission enabled
+  const enabledApps = Object.keys(matrix).filter(a => matrix[a]['read'] === true);
   return { matrix, enabledApps };
 }
 
