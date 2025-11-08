@@ -8,6 +8,7 @@ import { listUsers } from '../services/userService';
 import Toggle from '../components/Toggle';
 import { PrimaryButton, SubtleButton } from '../components/GradientButton';
 import PageContainer from '../components/PageContainer';
+import { showError, showSuccess } from '../utils/toast';
 import PageHeader from '../components/PageHeader';
 import { useNotifications } from '../context/NotificationContext';
 
@@ -115,7 +116,7 @@ export default function Teams() {
       loadTeams();
       refreshNotifications();
     } catch (err) {
-      alert(err?.response?.data?.error || 'Failed to create team');
+      showError(err?.response?.data?.error || 'Failed to create team');
     } finally {
       setSaving(false);
     }
@@ -131,7 +132,7 @@ export default function Teams() {
       loadTeams();
       refreshNotifications();
     } catch (err) {
-      alert(err?.response?.data?.error || 'Failed to update team');
+      showError(err?.response?.data?.error || 'Failed to update team');
     } finally {
       setSaving(false);
     }
@@ -147,7 +148,7 @@ export default function Teams() {
       loadTeams();
       refreshNotifications();
     } catch (err) {
-      alert('Failed to delete team');
+      showError('Failed to delete team');
     }
   };
 
@@ -165,7 +166,7 @@ export default function Teams() {
       loadAllUsers();
       refreshNotifications();
     } catch (err) {
-      alert('Failed to add member');
+      showError('Failed to add member');
     }
   };
 
@@ -176,7 +177,7 @@ export default function Teams() {
       loadAllUsers();
       refreshNotifications();
     } catch (err) {
-      alert('Failed to remove member');
+      showError('Failed to remove member');
     }
   };
 
@@ -187,11 +188,11 @@ export default function Teams() {
       await inviteToTeam(selectedTeamId, inviteForm.email.trim(), inviteForm.roleName);
       setInviteForm({ email: '', roleName: 'Member' });
       setShowInviteForm(false);
-      alert('Invitation sent successfully!');
+      showSuccess('Invitation sent successfully!');
       loadMembers(selectedTeamId);
       refreshNotifications();
     } catch (err) {
-      alert(err?.response?.data?.error || 'Failed to send invitation');
+      showError(err?.response?.data?.error || 'Failed to send invitation');
     } finally {
       setSaving(false);
     }
@@ -215,7 +216,7 @@ export default function Teams() {
       setDirty({});
       refreshNotifications();
     } catch (err) {
-      alert('Failed to save permissions');
+      showError('Failed to save permissions');
     } finally {
       setSaving(false);
     }

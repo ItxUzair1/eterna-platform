@@ -62,8 +62,13 @@ export default function SettingsAccount() {
   };
 
   const handlePhotoUpload = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
     
     // Validate file type
     if (!file.type.startsWith('image/')) {

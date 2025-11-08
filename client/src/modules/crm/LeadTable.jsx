@@ -4,6 +4,7 @@ import { listOwnersMinimal } from "../../services/userService";
 import { ChevronDown, ChevronUp, Filter, MoreHorizontal, Plus, Search, Upload, User2, Download, X, Settings2 } from "lucide-react";
 import { usePermission } from "../auth/usePermission";
 import clsx from "clsx";
+import { showError } from '../../utils/toast';
 
 // Base columns that can't be removed
 const baseColumns = [
@@ -52,7 +53,7 @@ export default function LeadTable({ onOpenDrawer, onOpenImport }) {
     if (!newColumnName.trim() || !newColumnKey.trim()) return;
     const key = newColumnKey.trim().toLowerCase().replace(/\s+/g, '_');
     if (allColumns.find(c => c.key === key)) {
-      alert("Column key already exists");
+      showError("Column key already exists");
       return;
     }
     const newCol = { key, label: newColumnName.trim(), default: true, required: false, custom: true };
@@ -198,7 +199,7 @@ export default function LeadTable({ onOpenDrawer, onOpenImport }) {
       }
     } catch (error) {
       console.error("Export failed:", error);
-      alert("Export failed. Please try again.");
+      showError("Export failed. Please try again.");
     }
   };
 

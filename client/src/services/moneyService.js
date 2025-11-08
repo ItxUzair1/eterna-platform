@@ -12,9 +12,8 @@ export const moneyApi = {
   uploadFile: (transactionId, file) => {
     const form = new FormData();
     form.append("file", file);
-    return api.post(`/money/transactions/${transactionId}/files`, form, { 
-      headers: { "Content-Type": "multipart/form-data" } 
-    });
+    // Don't set Content-Type header - let axios set it automatically with boundary
+    return api.post(`/money/transactions/${transactionId}/files`, form);
   },
   deleteFile: (transactionId, transactionFileId) => 
     api.delete(`/money/transactions/${transactionId}/files/${transactionFileId}`),

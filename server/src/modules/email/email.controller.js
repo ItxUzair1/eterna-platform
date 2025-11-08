@@ -284,9 +284,27 @@ const seedDefaultTemplates = async (req, res) => {
 };
 
 const uploadAttachment = [
-  withSingleFile('file'),
+  (req, res, next) => {
+    const upload = withSingleFile('file')[0];
+    upload(req, res, (err) => {
+      if (err) {
+        console.error('[Email] Upload error:', err);
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({ error: 'File too large. Maximum size is 50MB.' });
+        }
+        if (err.code === 'SPACES_CONFIG_MISSING') {
+          return res.status(500).json({ error: err.message || 'DigitalOcean Spaces is not configured.' });
+        }
+        return res.status(400).json({ error: err.message || 'File upload failed' });
+      }
+      next();
+    });
+  },
   async (req, res) => {
     try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+      }
       const ctx = {
         tenantId: req.user.tenantId,
         userId: req.user.id
@@ -300,7 +318,8 @@ const uploadAttachment = [
         message: 'File uploaded successfully.' 
       });
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      console.error('[Email] Upload processing error:', err);
+      res.status(400).json({ error: err.message || 'Failed to process upload' });
     }
   }
 ];

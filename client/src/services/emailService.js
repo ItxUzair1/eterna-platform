@@ -37,9 +37,6 @@ export const seedDefaultTemplates = () => api.post('/email/templates/seed');
 export const uploadEmailAttachment = (file) => {
   const formData = new FormData();
   formData.append('file', file);
-  return api.post('/email/attachments', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
+  // Don't set Content-Type header - let axios set it automatically with boundary
+  return api.post('/email/attachments', formData);
 };

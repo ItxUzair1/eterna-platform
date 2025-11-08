@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { moneyApi } from "../../services/moneyService";
 import { usePermission } from "../auth/usePermission";
 import { X, Upload, FileText } from "lucide-react";
+import { showError } from '../../utils/toast';
 
 const PAYMENT_METHODS = ["Cash", "Card", "Bank Transfer", "Crypto", "Other"];
 const TRANSACTION_TYPES = ["Revenue", "Expense"];
@@ -56,7 +57,7 @@ export default function TransactionForm({ transactionId, onClose, onSaved, categ
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!data.category || !data.amount || !data.type) {
-      alert("Please fill in required fields (Category, Amount, Type)");
+      showError("Please fill in required fields (Category, Amount, Type)");
       return;
     }
 
@@ -70,22 +71,30 @@ export default function TransactionForm({ transactionId, onClose, onSaved, categ
       onSaved();
     } catch (error) {
       console.error("Failed to save:", error);
-      alert(error?.response?.data?.error || "Failed to save transaction");
+      showError(error?.response?.data?.error || "Failed to save transaction");
     } finally {
       setLoading(false);
     }
   };
 
   const handleFileUpload = async (e) => {
+    e.preventDefault(); // Prevent any form submission
+    e.stopPropagation(); // Stop event bubbling
     const file = e.target.files?.[0];
-    if (!file || !transactionId) return;
+    if (!file || !transactionId) {
+      e.target.value = ''; // Reset input
+      return;
+    }
 
     try {
       await moneyApi.uploadFile(transactionId, file);
       const filesRes = await moneyApi.listFiles(transactionId);
       setFiles(filesRes.data?.items || []);
     } catch (error) {
-      alert("Failed to upload file");
+      console.error('File upload error:', error);
+      showError(error?.response?.data?.error || "Failed to upload file");
+    } finally {
+      e.target.value = ''; // Reset input
     }
   };
 
@@ -96,7 +105,7 @@ export default function TransactionForm({ transactionId, onClose, onSaved, categ
       const filesRes = await moneyApi.listFiles(transactionId);
       setFiles(filesRes.data?.items || []);
     } catch (error) {
-      alert("Failed to delete file");
+      showError("Failed to delete file");
     }
   };
 
@@ -113,7 +122,16 @@ export default function TransactionForm({ transactionId, onClose, onSaved, categ
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form 
+          onSubmit={handleSubmit} 
+          className="p-6 space-y-4"
+          onKeyDown={(e) => {
+            // Prevent form submission on Enter key when file input is focused
+            if (e.key === 'Enter' && e.target.type === 'file') {
+              e.preventDefault();
+            }
+          }}
+        >
           {canWrite ? (
             <>
               <div className="grid grid-cols-2 gap-4">
@@ -317,13 +335,28 @@ export default function TransactionForm({ transactionId, onClose, onSaved, categ
               <label className="block text-sm font-medium text-slate-700 mb-2">Attachments</label>
               <div className="space-y-2">
                 {canWrite && (
-                  <label className="inline-flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100">
+                  <label 
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      // Manually trigger file input click to avoid form submission
+                      const fileInput = e.currentTarget.querySelector('input[type="file"]');
+                      if (fileInput) {
+                        fileInput.click();
+                      }
+                    }}
+                  >
                     <Upload className="w-4 h-4" />
                     <span className="text-sm">Upload File</span>
                     <input
                       type="file"
                       className="hidden"
                       onChange={handleFileUpload}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
                     />
                   </label>
                 )}

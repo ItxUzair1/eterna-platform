@@ -100,27 +100,49 @@ const upload = require('./upload');
 const { getSignedDownloadUrl } = require('../../utils/spaces');
 
 const attachFile = [
-  upload.single('file'),
+  (req, res, next) => {
+    upload.single('file')(req, res, (err) => {
+      if (err) {
+        console.error('[Kanban] Upload error:', err);
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({ error: 'File too large. Maximum size is 50MB.' });
+        }
+        if (err.code === 'SPACES_CONFIG_MISSING') {
+          return res.status(500).json({ error: err.message || 'DigitalOcean Spaces is not configured.' });
+        }
+        return res.status(400).json({ error: err.message || 'File upload failed' });
+      }
+      next();
+    });
+  },
   async (req, res) => {
-    const { cardId } = req.body;
-    const { key, mimetype, size } = { key: req.file.key, mimetype: req.file.mimetype, size: req.file.size };
-    const r = await svc.attachFile({
-      tenantId: req.user.tenantId,
-      userId: req.user.id,
-      cardId: Number(cardId),
-      path: key,
-      mime: mimetype,
-      size
-    });
-    await createNotification({
-      tenantId: req.user.tenantId,
-      userId: req.user.id,
-      type: 'info',
-      title: 'Attachment uploaded',
-      message: 'A file was attached to a card.',
-      data: { cardId: Number(cardId) }
-    });
-    res.json(r);
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+      }
+      const { cardId } = req.body;
+      const { key, mimetype, size } = { key: req.file.key, mimetype: req.file.mimetype, size: req.file.size };
+      const r = await svc.attachFile({
+        tenantId: req.user.tenantId,
+        userId: req.user.id,
+        cardId: Number(cardId),
+        path: key,
+        mime: mimetype,
+        size
+      });
+      await createNotification({
+        tenantId: req.user.tenantId,
+        userId: req.user.id,
+        type: 'info',
+        title: 'Attachment uploaded',
+        message: 'A file was attached to a card.',
+        data: { cardId: Number(cardId) }
+      });
+      res.json(r);
+    } catch (err) {
+      console.error('[Kanban] Upload processing error:', err);
+      res.status(400).json({ error: err.message || 'Failed to process upload' });
+    }
   }
 ];
 

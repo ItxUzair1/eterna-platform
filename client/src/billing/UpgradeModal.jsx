@@ -92,108 +92,212 @@ export default function UpgradeModal() {
     <>
       {/* Scrim */}
       <div
-        className="fixed inset-0 z-40
-                   bg-slate-950/70 backdrop-blur-sm
+        className="fixed inset-0 z-40 bg-slate-950/70 backdrop-blur-sm
                    bg-[radial-gradient(1200px_600px_at_10%_10%,rgba(99,102,241,.25),transparent_60%),radial-gradient(1200px_600px_at_90%_90%,rgba(168,85,247,.25),transparent_60%)]"
         onClick={closeUpgradeModal}
         aria-hidden="true"
       />
 
       {/* Dialog */}
+<div
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="upgrade-title"
+  aria-describedby="upgrade-desc"
+  ref={dialogRef}
+  className="fixed z-50 left-1/2 top-14 -translate-x-1/2
+             w-[min(880px,calc(100vw-32px))]
+             overflow-y-auto max-h-[80vh]
+             rounded-2xl border border-slate-200 bg-white
+             shadow-2xl animate-[modal-pop_220ms_cubic-bezier(.2,.8,.2,1)_forwards] opacity-0"
+  onClick={(e) => e.stopPropagation()}
+  data-open="true"
+>
+  {/* Top gradient bar */}
+  <div className="relative">
+    <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-violet-500 to-pink-500 bg-[length:200%_100%] animate-[hueSlide_6s_linear_infinite]" />
+    <div className="px-6 py-4">
+      <h2 id="upgrade-title" className="text-slate-900 font-bold tracking-tight text-lg">
+        Upgrade Plan
+      </h2>
+    </div>
+  </div>
+
+  {/* Modal Body */}
+  <div className="px-6 pb-24">
+    <p id="upgrade-desc" className="text-slate-600">
+      Choose a plan and optional storage add-on, then proceed to checkout. Your access updates automatically after payment.
+    </p>
+
+    {code === 'UPGRADE_REQUIRED' && (
+      <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 text-amber-800 px-3 py-2">
+        This feature requires upgrading your plan. Please upgrade to access this app.
+      </p>
+    )}
+    {code && code !== 'UPGRADE_REQUIRED' && (
+      <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 text-amber-800 px-3 py-2">
+        Reason: {code}
+      </p>
+    )}
+
+    {/* Plan selector buttons */}
+    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Plan">
+        <PlanButton value="individual" label="Individual ($15/mo)" />
+        <PlanButton value="enterprise_unlimited" label="Enterprise ($1000/mo)" />
+      </div>
+
+      <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-gradient-to-b from-white to-slate-50 px-3 py-2">
+        <span className="text-slate-800">Storage add-on (GB):</span>
+        <input
+          type="number"
+          min="0"
+          value={selection.storageGB}
+          onChange={(e) => setSelection({ storageGB: Number(e.target.value) })}
+          inputMode="numeric"
+          className="w-28 rounded-lg border border-slate-300 px-2 py-1 outline-none
+                     focus:border-indigo-500 focus:ring-4 focus:ring-indigo-200"
+        />
+      </label>
+    </div>
+
+    {/* Plan cards */}
+    <div className="mt-5 grid gap-4 sm:grid-cols-2">
+      {/* Individual Card */}
       <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="upgrade-title"
-        aria-describedby="upgrade-desc"
-        ref={dialogRef}
-        className="fixed z-50 left-1/2 top-14 -translate-x-1/2
-                   w-[min(720px,calc(100vw-32px))] overflow-hidden
-                   rounded-2xl border border-white/60 bg-white/80 backdrop-blur-xl
-                   shadow-2xl shadow-slate-900/35
-                   animate-[modal-pop_220ms_cubic-bezier(.2,.8,.2,1)_forwards] opacity-0"
-        onClick={(e) => e.stopPropagation()}
-        data-open="true"
+        className={[
+          'rounded-2xl border p-5 transition shadow-sm',
+          selection.plan === 'individual'
+            ? 'border-indigo-300 ring-1 ring-indigo-300'
+            : 'border-slate-200'
+        ].join(' ')}
+        role="button"
+        tabIndex={0}
+        onClick={() => setSelection({ plan: 'individual' })}
+        onKeyDown={(e) => e.key === 'Enter' && setSelection({ plan: 'individual' })}
       >
-        {/* Animated gradient top bar */}
-        <div className="relative">
-          <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-violet-500 to-pink-500 bg-[length:200%_100%] animate-[hueSlide_6s_linear_infinite]" />
-          <div className="px-6 py-4">
-            <h2 id="upgrade-title" className="text-slate-900 font-bold tracking-tight text-lg">
-              Upgrade Plan
-            </h2>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-slate-900">Individual</h3>
+            <p className="text-sm text-slate-600">Great for solo work and creators.</p>
           </div>
+          <span className="rounded-full bg-indigo-50 px-2 py-1 text-[10px] font-semibold text-indigo-600">
+            $15/mo
+          </span>
         </div>
-
-        <div className="px-6 pb-2">
-          <p id="upgrade-desc" className="text-slate-600">
-            Choose a plan and optional storage add-on, then proceed to checkout. Your access updates automatically after payment.
-          </p>
-
-          {code === 'UPGRADE_REQUIRED' && (
-            <p className="mt-3 rounded-xl border border-amber-300 bg-gradient-to-b from-amber-50 to-amber-100 text-amber-800 px-3 py-2">
-              This feature requires upgrading your plan. Please upgrade to access this app.
-            </p>
-          )}
-          {code && code !== 'UPGRADE_REQUIRED' && (
-            <p className="mt-3 rounded-xl border border-amber-300 bg-gradient-to-b from-amber-50 to-amber-100 text-amber-800 px-3 py-2">
-              Reason: {code}
-            </p>
-          )}
-
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Plan">
-              <PlanButton value="individual" label="Individual ($15/mo)" />
-              <PlanButton value="enterprise_unlimited" label="Enterprise ($1000/mo)" />
-            </div>
-
-            <label className="flex items-center gap-2 rounded-xl border border-slate-900/10 bg-gradient-to-b from-white to-slate-50 px-3 py-2">
-              <span className="text-slate-800">Storage add-on (GB):</span>
-              <input
-                type="number"
-                min="0"
-                value={selection.storageGB}
-                onChange={(e) => setSelection({ storageGB: Number(e.target.value) })}
-                inputMode="numeric"
-                className="w-28 rounded-lg border border-slate-900/15 px-2 py-1 outline-none
-                           focus:border-indigo-500 focus:ring-4 focus:ring-indigo-200"
-              />
-            </label>
-          </div>
-        </div>
-
-        <div className="px-6 pb-5 pt-2 flex flex-wrap gap-2">
+        <ul className="mt-3 space-y-2 text-sm text-slate-700">
+          <li>Access to CRM, Email, and Kanban apps</li>
+          <li>Core features and automations</li>
+          <li>Optional storage add-on</li>
+        </ul>
+        <div className="mt-4">
           <button
             type="button"
-            onClick={startCheckout}
-            data-autofocus
-            className="relative rounded-xl px-4 py-2 text-white font-semibold
-                       bg-gradient-to-r from-cyan-400 via-indigo-500 to-violet-500 bg-[length:200%_100%]
-                       hover:bg-[position:100%_0%]
-                       shadow-lg shadow-cyan-400/25 hover:shadow-cyan-400/35
-                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+            onClick={() => setSelection({ plan: 'individual' })}
+            className="w-full rounded-xl px-4 py-2 text-white font-semibold
+                       bg-gradient-to-r from-indigo-500 via-blue-500 to-violet-500
+                       hover:from-indigo-600 hover:via-blue-600 hover:to-violet-600
+                       shadow-md hover:shadow-lg transition focus-visible:outline-none
+                       focus-visible:ring-2 focus-visible:ring-indigo-300"
           >
-            Start Checkout
-          </button>
-          <button
-            type="button"
-            onClick={openPortal}
-            className="rounded-xl px-4 py-2 bg-white text-slate-900 border border-slate-900/15
-                       hover:-translate-y-0.5 transition shadow-md hover:shadow-lg
-                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
-          >
-            Manage billing
-          </button>
-          <button
-            type="button"
-            onClick={closeUpgradeModal}
-            className="rounded-xl px-4 py-2 bg-white text-slate-900 border border-slate-900/15
-                       hover:-translate-y-0.5 transition shadow-md hover:shadow-lg
-                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
-          >
-            Close
+            Choose Individual
           </button>
         </div>
       </div>
+
+      {/* Enterprise Card */}
+      <div
+        className={[
+          'rounded-2xl border p-5 transition shadow-sm',
+          selection.plan === 'enterprise_unlimited'
+            ? 'border-violet-300 ring-1 ring-violet-300'
+            : 'border-slate-200'
+        ].join(' ')}
+        role="button"
+        tabIndex={0}
+        onClick={() => setSelection({ plan: 'enterprise_unlimited' })}
+        onKeyDown={(e) => e.key === 'Enter' && setSelection({ plan: 'enterprise_unlimited' })}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-slate-900">Enterprise</h3>
+            <p className="text-sm text-slate-600">Complete access and control at scale.</p>
+          </div>
+          <span className="rounded-full bg-violet-50 px-2 py-1 text-[10px] font-semibold text-violet-600">
+            $1000/mo
+          </span>
+        </div>
+        <ul className="mt-3 space-y-2 text-sm text-slate-700">
+          <li>Access to all apps</li>
+          <li>Admin access and controls</li>
+          <li>Invite members up to 999</li>
+          <li>Create teams and assign permissions</li>
+          <li>More storage included</li>
+        </ul>
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={() => setSelection({ plan: 'enterprise_unlimited' })}
+            className="w-full rounded-xl px-4 py-2 text-white font-semibold
+                       bg-gradient-to-r from-indigo-500 via-blue-500 to-violet-500
+                       hover:from-indigo-600 hover:via-blue-600 hover:to-violet-600
+                       shadow-md hover:shadow-lg transition focus-visible:outline-none
+                       focus-visible:ring-2 focus-visible:ring-indigo-300"
+          >
+            Choose Enterprise
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {/* Footer actions */}
+  <div className="px-6 pb-5 pt-3">
+    <div
+      className="sticky bottom-0 left-0 right-0 -mx-6 px-6 py-3
+                 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80
+                 border-t border-slate-200"
+    >
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={startCheckout}
+          data-autofocus
+          className="inline-flex items-center justify-center rounded-xl px-4 py-2 text-white font-semibold
+                     bg-gradient-to-r from-indigo-600 via-blue-600 to-violet-600
+                     hover:from-indigo-700 hover:via-blue-700 hover:to-violet-700
+                     shadow-md hover:shadow-lg transition focus-visible:outline-none
+                     focus-visible:ring-2 focus-visible:ring-indigo-300"
+        >
+          Start Checkout
+        </button>
+
+        <button
+          type="button"
+          onClick={openPortal}
+          className="inline-flex items-center justify-center rounded-xl px-4 py-2
+                     text-slate-900 bg-white border border-slate-300
+                     hover:bg-slate-50 transition shadow-sm hover:shadow-md
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+        >
+          Manage billing
+        </button>
+
+        <button
+          type="button"
+          onClick={closeUpgradeModal}
+          className="inline-flex items-center justify-center rounded-xl px-4 py-2
+                     text-slate-700 bg-slate-100 border border-slate-300
+                     hover:bg-slate-200 transition shadow-sm hover:shadow-md
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 
       {/* Animations */}
       <style>

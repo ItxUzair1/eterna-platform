@@ -8,6 +8,14 @@ async function resolvePermissions({ tenantId, userId }) {
     select: { role: { select: { name: true } }, tenantId: true }
   });
 
+  // Check if user is the owner (first user created for this tenant)
+  const firstUser = await prisma.user.findFirst({
+    where: { tenantId },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true }
+  });
+  const isOwner = firstUser?.id === userId;
+
   // Tenant defaults used as role defaults in MVP
   const defaultPerms = await prisma.permission.findMany({ where: { tenantId } });
   console.log(`[resolvePermissions] Found ${defaultPerms.length} default perms`);
@@ -21,11 +29,20 @@ async function resolvePermissions({ tenantId, userId }) {
 
   const userPerms = await prisma.userPermission.findMany({ where: { userId } });
   console.log(`[resolvePermissions] Found ${userPerms.length} user perms`);
+  const hasExplicitPermissions = userPerms.length > 0;
 
   // If user is in ANY team, use ONLY team permissions (restrictive mode - even if empty)
-  // Only users NOT in any team get tenant defaults
+  // Only users NOT in any team get tenant defaults (but only if owner or has explicit permissions)
   const isInTeam = teamIds.length > 0;
   const merged = new Map();
+  
+  // For invited members NOT in a team: start with empty permissions unless admin explicitly granted permissions
+  if (!isInTeam && !isOwner && !hasExplicitPermissions) {
+    console.log(`[resolvePermissions] Invited member without team and no explicit permissions = no access`);
+    const effective = new Set();
+    const enabledApps = [];
+    return { roleName: user?.role?.name || 'Member', effective, enabledApps };
+  }
   
   if (isInTeam) {
     // Start with empty set, only add team permissions (if admin has set any)
@@ -33,20 +50,27 @@ async function resolvePermissions({ tenantId, userId }) {
       if (p.enabled) merged.set(`${p.appKey}:${p.scopeKey}`, true); 
     });
     console.log(`[resolvePermissions] User is in team(s), using ONLY team permissions (restrictive mode): ${merged.size} permissions`);
-  } else {
-    // Start with tenant defaults (only for users not in any team)
+  } else if (isOwner) {
+    // Owner: start with tenant defaults, then apply user overrides
     defaultPerms.forEach(p => merged.set(`${p.appKey}:${p.scopeKey}`, true));
-    console.log(`[resolvePermissions] User not in any team, using tenant defaults: ${merged.size} permissions`);
+    console.log(`[resolvePermissions] Owner not in any team, using tenant defaults: ${merged.size} permissions`);
   }
+  // For invited members (not owner, not in team): start with empty, only add explicit user permissions
   
-  // Apply user-specific overrides (can add or remove)
+  // Apply user-specific permissions (for invited members this is the only source)
+  // For owner/team members, this acts as overrides
   userPerms.forEach(p => {
     const k = `${p.appKey}:${p.scopeKey}`;
-    if (p.enabled) merged.set(k, true); else merged.delete(k);
+    if (p.enabled) {
+      merged.set(k, true);
+    } else {
+      merged.delete(k);
+    }
   });
 
   const effective = new Set([...merged.keys()]);
-  const enabledApps = [...new Set([...effective].map(k => k.split(':')[0]))];
+  // Only include apps that have 'read' permission enabled
+  const enabledApps = [...new Set([...effective].filter(k => k.endsWith(':read')).map(k => k.split(':')[0]))];
   console.log(`[resolvePermissions] enabledApps=${enabledApps.join(', ')}`);
 
   return { roleName: user?.role?.name || 'Member', effective, enabledApps };
@@ -79,16 +103,24 @@ const rbacGuard = (appKey, ...scopes) => {
         .map(t => t.teamId);
       const isInTeam = userTeamIds.length > 0;
 
-      // Only apply plan-based auto-grants if user is NOT in any team
-      if (!isInTeam) {
+      // Check if user is the owner (first user created for this tenant)
+      const firstUser = await prisma.user.findFirst({
+        where: { tenantId },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true }
+      });
+      const isOwner = firstUser?.id === userId;
+      
+      // Only apply plan-based auto-grants if user is NOT in any team AND is the owner
+      if (!isInTeam && isOwner) {
         // Use entitlements for plan/lifecycle
         const ent = await getEntitlements(tenantId);
         const planLower = (ent?.plan || '').toLowerCase().trim();
         const isTrial = ent?.lifecycle_state === 'trial_active';
 
-        // Enterprise plan: allow all apps and scopes including admin
+        // Enterprise plan: allow all apps and scopes including admin (owner only)
         if (planLower.startsWith('enterprise')) {
-          console.log('[rbacGuard] ALLOWING: Enterprise plan grants full access including admin');
+          console.log('[rbacGuard] ALLOWING: Enterprise plan grants full access including admin (owner only)');
           return next();
         }
 
@@ -99,15 +131,17 @@ const rbacGuard = (appKey, ...scopes) => {
             console.log('[rbacGuard] REJECTING: Admin not available on Individual plan');
             return res.status(403).json({ error: 'Admin app not available on Individual plan' });
           }
-          console.log('[rbacGuard] ALLOWING: Individual plan grants full RW for non-admin apps');
+          console.log('[rbacGuard] ALLOWING: Individual plan grants full RW for non-admin apps (owner only)');
           return next();
         }
+      } else if (!isInTeam && !isOwner) {
+        console.log('[rbacGuard] Invited member not in team - no plan-based auto-grants, using explicit permissions only');
       } else {
         console.log('[rbacGuard] User is in team(s), skipping plan-based auto-grants - using restrictive team permissions');
       }
       
-      // Auto-seed Enterprise permissions only for non-team members
-      if (!isInTeam) {
+      // Auto-seed Enterprise permissions only for owner (non-team members)
+      if (!isInTeam && isOwner) {
         const ent = await getEntitlements(tenantId);
         const planLower = (ent?.plan || '').toLowerCase().trim();
         if ((planLower === 'enterprise_seats' || planLower === 'enterprise_unlimited') && appKey === 'admin' && !req.context.enabledApps.includes(appKey)) {
@@ -117,7 +151,7 @@ const rbacGuard = (appKey, ...scopes) => {
           });
           
           if (existingAdminPerms.length === 0) {
-            // Auto-seed all Enterprise permissions for first-time admin access
+            // Auto-seed all Enterprise permissions for first-time admin access (owner only)
             const defaults = [
               { appKey: 'admin', scopeKey: 'read' },
               { appKey: 'admin', scopeKey: 'manage' },

@@ -5,6 +5,7 @@ import DOMPurify from 'dompurify';
 import PageContainer from '../components/PageContainer';
 import PageHeader from '../components/PageHeader';
 import { useNotifications } from '../context/NotificationContext';
+import { showError } from '../utils/toast';
 import {
   sendEmail, saveDraft, sendDraft, updateDraft,
   getSentEmails, getDrafts, getTrash,
@@ -109,8 +110,13 @@ export default function Email() {
 
   // Attachments
   const handleFileSelect = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
     const files = Array.from(e.target.files);
-    if (files.length === 0) return;
+    if (files.length === 0) {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
 
     try {
       setStatus('Uploading attachments...');
@@ -125,6 +131,7 @@ export default function Email() {
       setAttachments(prev => [...prev, ...newAttachments]);
       setStatus(null);
     } catch (err) {
+      console.error('Email attachment upload error:', err);
       setStatus('Error uploading files: ' + (err.response?.data?.error || err.message));
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -173,7 +180,10 @@ export default function Email() {
     }
   };
   const handleSaveTemplate = async () => {
-    if (!subject || !body) return alert('Please provide subject and body.');
+    if (!subject || !body) {
+      showError('Please provide subject and body.');
+      return;
+    }
     await saveEmailTemplate({ name: subject, subject, body });
     setStatus('Template saved successfully');
     getEmailTemplates().then(r => setTemplates(r.data));
@@ -460,7 +470,15 @@ export default function Email() {
                       </p>
                     </div>
                   )}
-                  <form onSubmit={handleSend}>
+                  <form 
+                    onSubmit={handleSend}
+                    onKeyDown={(e) => {
+                      // Prevent form submission on Enter key when file input is focused
+                      if (e.key === 'Enter' && (e.target.type === 'file' || e.target.htmlFor === 'file-attachment')) {
+                        e.preventDefault();
+                      }
+                    }}
+                  >
                     <div className="space-y-4">
                       {/* To */}
                       <div className="flex items-start gap-3">
@@ -630,6 +648,10 @@ export default function Email() {
                             type="file"
                             ref={fileInputRef}
                             onChange={handleFileSelect}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                            }}
                             multiple
                             className="hidden"
                             id="file-attachment"
@@ -637,6 +659,14 @@ export default function Email() {
                           <label
                             htmlFor="file-attachment"
                             className="px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg cursor-pointer transition border border-slate-200 dark:border-slate-700"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              // Manually trigger file input click to avoid form submission
+                              if (fileInputRef.current) {
+                                fileInputRef.current.click();
+                              }
+                            }}
                           >
                             Attach
                           </label>

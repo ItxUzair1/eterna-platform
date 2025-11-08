@@ -22,7 +22,7 @@ router.post('/invite/accept', ctrl.acceptInvite);
 router.get('/me', verifyToken, ctrl.me);
 router.put('/me/profile', verifyToken, ctrl.updateProfile);
 router.post('/me/photo', verifyToken, (req, res, next) => {
-  const upload = spacesUploadMiddleware('photo', { prefix: 'profiles', maxCount: 1 });
+  const upload = spacesUploadMiddleware('photo', { prefix: 'profiles', maxCount: 1, maxFileSize: 5 * 1024 * 1024 });
   upload(req, res, (err) => {
     if (err) {
       console.error('[uploadPhoto] Multer error:', err);

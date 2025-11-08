@@ -7,6 +7,7 @@ import MoneyCharts from "../modules/money/MoneyCharts";
 import PageContainer from "../components/PageContainer";
 import PageHeader from "../components/PageHeader";
 import { useNotifications } from "../context/NotificationContext";
+import { showError } from '../utils/toast';
 
 function ExportDropdown({ onExport }) {
   const [open, setOpen] = useState(false);
@@ -142,7 +143,7 @@ export default function MoneyManagement() {
       fetchStats();
       refreshNotifications();
     } catch (error) {
-      alert("Failed to delete transaction");
+      showError("Failed to delete transaction");
     }
   };
 
@@ -162,7 +163,7 @@ export default function MoneyManagement() {
       }
     } catch (error) {
       console.error("Export failed:", error);
-      alert("Export failed");
+      showError("Export failed");
     }
   };
 

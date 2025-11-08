@@ -17,7 +17,22 @@ r.post("/leads/assign", ctrl.assignLeads);
 
 // Files
 r.get("/leads/:leadId/files", ctrl.listLeadFiles);
-r.post("/leads/:leadId/files", withSingleFile("file"), ctrl.uploadLeadFile);
+r.post("/leads/:leadId/files", (req, res, next) => {
+  const upload = withSingleFile("file")[0];
+  upload(req, res, (err) => {
+    if (err) {
+      console.error('[CRM] Upload error:', err);
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: 'File too large. Maximum size is 50MB.' });
+      }
+      if (err.code === 'SPACES_CONFIG_MISSING') {
+        return res.status(500).json({ error: err.message || 'DigitalOcean Spaces is not configured.' });
+      }
+      return res.status(400).json({ error: err.message || 'File upload failed' });
+    }
+    next();
+  });
+}, ctrl.uploadLeadFile);
 r.delete("/leads/:leadId/files/:leadFileId", ctrl.deleteLeadFile);
 
 // Statuses

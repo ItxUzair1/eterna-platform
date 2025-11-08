@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { usePermission } from '../modules/auth/usePermission';
+import { showError, showSuccess } from '../utils/toast';
 import {
   listBoards, createBoard, getBoardFull, updateBoard,
   createColumn, reorderColumns, updateColumn, deleteColumn,
   createCard, updateCard, deleteCard, moveCard, reorderCards,
   attachFile, addComment, listComments
 } from '../services/kanbanService';
-import { listUsers } from '../services/userService';
+import { listOwnersMinimal } from '../services/userService';
 
 import {
   DndContext,
@@ -649,10 +650,16 @@ function CardModal({ open, onClose, card, setCardState, onSave, onDelete, onAtta
               <input
                 type="file"
                 onChange={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
                   if (e.target.files?.[0]) {
                     onAttach(e.target.files[0]);
-                    e.target.value = '';
                   }
+                  e.target.value = '';
+                }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
                 }}
                 className="text-sm file:mr-3 file:px-4 file:py-2 file:rounded-lg file:border-0
                            file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100
@@ -857,7 +864,7 @@ export default function Kanban() {
   // Load boards and users
   useEffect(() => {
     listBoards().then(r => setBoards(r.data));
-    listUsers().then(setUsers).catch(() => setUsers([]));
+    listOwnersMinimal().then(setUsers).catch(() => setUsers([]));
   }, []);
 
   // Load selected board
@@ -895,7 +902,7 @@ export default function Kanban() {
       setNewBoardTitle('');
       setShowNewBoardForm(false);
     } catch (err) {
-      alert('Failed to create board');
+      showError('Failed to create board');
     }
   };
 
@@ -907,7 +914,7 @@ export default function Kanban() {
       setActiveBoard(prev => ({ ...prev, ...updates }));
       setBoards(prev => prev.map(b => b.id === activeBoardId ? { ...b, ...updates } : b));
     } catch (err) {
-      alert('Failed to update board');
+      showError('Failed to update board');
     }
   };
 
@@ -915,12 +922,17 @@ export default function Kanban() {
   const handleAddColumn = async () => {
     if (!activeBoardId) return;
     const title = prompt('Column title?');
-    if (!title) return;
+    if (!title || !title.trim()) return;
     try {
-      const { data } = await createColumn({ boardId: activeBoardId, title });
-      setBoardData(prev => ({ ...prev, columns: [...(prev?.columns||[]), data] }));
+      const response = await createColumn({ boardId: activeBoardId, title: title.trim() });
+      const newColumn = response.data || response; // Handle both response formats
+      // Reload the board to ensure consistency
+      const boardResponse = await getBoardFull(activeBoardId);
+      setBoardData(boardResponse.data);
+      setActiveBoard(boardResponse.data);
     } catch (err) {
-      alert('Failed to create column');
+      console.error('Failed to create column:', err);
+      showError(err?.response?.data?.error || 'Failed to create column');
     }
   };
 
@@ -932,7 +944,7 @@ export default function Kanban() {
         columns: prev.columns.map(c => c.id === columnId ? { ...c, ...payload } : c)
       }));
     } catch (err) {
-      alert('Failed to update column');
+      showError('Failed to update column');
     }
   };
 
@@ -946,7 +958,7 @@ export default function Kanban() {
         cards: prev.cards.filter(cd => cd.columnId !== columnId)
       }));
     } catch (err) {
-      alert('Failed to delete column');
+      showError('Failed to delete column');
     }
   };
 
@@ -966,7 +978,7 @@ export default function Kanban() {
     try {
       await reorderColumns({ boardId: activeBoardId, orderedIds: newOrder.map(c => c.id) });
     } catch (err) {
-      alert('Failed to reorder columns');
+      showError('Failed to reorder columns');
     }
   };
 
@@ -1046,7 +1058,7 @@ export default function Kanban() {
         try {
           await reorderCards({ columnId: dropColumnId, orderedIds: newOrderIds });
         } catch (err) {
-          alert('Failed to reorder cards');
+          showError('Failed to reorder cards');
         }
       }
       return;
@@ -1064,7 +1076,7 @@ export default function Kanban() {
       const { data } = await getBoardFull(activeBoardId);
       setBoardData(data);
     } catch (err) {
-      alert('Failed to move card');
+      showError('Failed to move card');
     }
   };
 
@@ -1094,7 +1106,7 @@ export default function Kanban() {
       setBoardData(prev => ({ ...prev, cards: [...(prev?.cards || []), data] }));
       setAddingCardToColumn(null);
     } catch (err) {
-      alert('Failed to create card');
+      showError('Failed to create card');
     }
   };
 
@@ -1115,7 +1127,7 @@ export default function Kanban() {
       }));
       closeModal();
     } catch (err) {
-      alert('Failed to save card');
+      showError('Failed to save card');
     }
   };
 
@@ -1126,7 +1138,7 @@ export default function Kanban() {
       setBoardData(prev => ({ ...prev, cards: prev.cards.filter(c => c.id !== activeCard.id) }));
       closeModal();
     } catch (err) {
-      alert('Failed to delete card');
+      showError('Failed to delete card');
     }
   };
 
@@ -1139,7 +1151,7 @@ export default function Kanban() {
       setBoardData(data);
       setActiveCard(data.cards.find(c => c.id === activeCard.id));
     } catch (err) {
-      alert('Failed to attach file');
+      showError('Failed to attach file');
     }
   };
 
@@ -1157,7 +1169,7 @@ export default function Kanban() {
         )
       }));
     } catch (err) {
-      alert('Failed to add comment');
+      showError('Failed to add comment');
     }
   };
 

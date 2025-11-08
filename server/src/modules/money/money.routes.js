@@ -18,7 +18,22 @@ r.delete("/transactions/:id", rbacGuard("money", "write"), ctrl.deleteTransactio
 
 // Files
 r.get("/transactions/:transactionId/files", ctrl.listTransactionFiles);
-r.post("/transactions/:transactionId/files", withSingleFile("file"), rbacGuard("money", "write"), ctrl.uploadTransactionFile);
+r.post("/transactions/:transactionId/files", (req, res, next) => {
+  const upload = withSingleFile("file")[0];
+  upload(req, res, (err) => {
+    if (err) {
+      console.error('[Money] Upload error:', err);
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: 'File too large. Maximum size is 50MB.' });
+      }
+      if (err.code === 'SPACES_CONFIG_MISSING') {
+        return res.status(500).json({ error: err.message || 'DigitalOcean Spaces is not configured.' });
+      }
+      return res.status(400).json({ error: err.message || 'File upload failed' });
+    }
+    next();
+  });
+}, rbacGuard("money", "write"), ctrl.uploadTransactionFile);
 r.delete("/transactions/:transactionId/files/:transactionFileId", rbacGuard("money", "write"), ctrl.deleteTransactionFile);
 
 // Statistics

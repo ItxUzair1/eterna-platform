@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { crmApi } from "../../services/crmService";
 import { usePermission } from "../auth/usePermission";
+import { showError } from '../../utils/toast';
 
 export default function LeadDrawer({ open, onClose, leadId, mode, onSaved }) {
   const navigate = useNavigate();
@@ -73,7 +74,7 @@ export default function LeadDrawer({ open, onClose, leadId, mode, onSaved }) {
 
   const save = async () => {
     if (!data.name?.trim()) {
-      alert("Name is required");
+      showError("Name is required");
       return;
     }
     
@@ -122,7 +123,7 @@ export default function LeadDrawer({ open, onClose, leadId, mode, onSaved }) {
       }
     } catch (error) {
       console.error("Failed to save lead:", error);
-      alert(error?.response?.data?.error || "Failed to save lead. Please try again.");
+      showError(error?.response?.data?.error || "Failed to save lead. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -131,7 +132,7 @@ export default function LeadDrawer({ open, onClose, leadId, mode, onSaved }) {
   const uploadFile = async (file) => {
     const effectiveLeadId = currentLeadId || leadId;
     if (!effectiveLeadId) {
-      alert("Please save the lead first before uploading files");
+      showError("Please save the lead first before uploading files");
       return;
     }
     try {
@@ -140,7 +141,7 @@ export default function LeadDrawer({ open, onClose, leadId, mode, onSaved }) {
       setFiles(filesRes.data?.items || filesRes.data || []);
     } catch (error) {
       console.error("Failed to upload file:", error);
-      alert(error?.response?.data?.error || "Failed to upload file. Please try again.");
+      showError(error?.response?.data?.error || "Failed to upload file. Please try again.");
     }
   };
 
@@ -148,7 +149,7 @@ export default function LeadDrawer({ open, onClose, leadId, mode, onSaved }) {
   const createAppt = async () => {
     const effectiveLeadId = currentLeadId || leadId;
     if (!effectiveLeadId) {
-      alert("Please save the lead first before adding appointments");
+      showError("Please save the lead first before adding appointments");
       return;
     }
     try {
@@ -168,7 +169,7 @@ export default function LeadDrawer({ open, onClose, leadId, mode, onSaved }) {
       setApptForm({ startsAt: toLocalInput(start), endsAt: toLocalInput(end), location: "", notes: "" });
     } catch (error) {
       console.error("Failed to create appointment:", error);
-      alert(error?.response?.data?.error || "Failed to create appointment. Please try again.");
+      showError(error?.response?.data?.error || "Failed to create appointment. Please try again.");
     }
   };
 
@@ -184,7 +185,7 @@ export default function LeadDrawer({ open, onClose, leadId, mode, onSaved }) {
       });
       onClose(); // Close drawer when navigating
     } else {
-      alert('This lead has no email address.');
+      showError('This lead has no email address.');
     }
   };
 
@@ -354,8 +355,34 @@ export default function LeadDrawer({ open, onClose, leadId, mode, onSaved }) {
             {!(currentLeadId || leadId) && <div className="text-slate-500 text-sm">Save the lead before uploading files.</div>}
             {(currentLeadId || leadId) && canWrite && (
               <>
-                <label className="inline-flex items-center gap-2 bg-white border border-slate-200 hover:border-slate-300 px-3 py-2 rounded-lg cursor-pointer shadow-sm hover:shadow">
-                  <input type="file" className="hidden" onChange={(e) => e.target.files?.[0] && uploadFile(e.target.files[0])} />
+                <label 
+                  className="inline-flex items-center gap-2 bg-white border border-slate-200 hover:border-slate-300 px-3 py-2 rounded-lg cursor-pointer shadow-sm hover:shadow"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    // Manually trigger file input click
+                    const fileInput = e.currentTarget.querySelector('input[type="file"]');
+                    if (fileInput) {
+                      fileInput.click();
+                    }
+                  }}
+                >
+                  <input 
+                    type="file" 
+                    className="hidden" 
+                    onChange={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (e.target.files?.[0]) {
+                        uploadFile(e.target.files[0]);
+                      }
+                      e.target.value = ''; // Reset after handling
+                    }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                  />
                   Upload file
                 </label>
                 <ul className="space-y-2">

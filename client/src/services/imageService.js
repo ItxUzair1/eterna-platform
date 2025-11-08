@@ -6,7 +6,8 @@ export const createJob = (targetsCsv) => api.post('/image/jobs', { targets: targ
 export const uploadFiles = (jobId, files) => {
   const fd = new FormData();
   for (const f of files) fd.append('files', f);
-  return api.post(`/image/jobs/${jobId}/files`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  // Don't set Content-Type header - let axios set it automatically with boundary
+  return api.post(`/image/jobs/${jobId}/files`, fd);
 };
 
 export const planTargets = (jobId, targets, fileIds = []) =>

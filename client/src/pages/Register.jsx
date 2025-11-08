@@ -1,6 +1,7 @@
 // client/src/pages/Register.jsx
 import React, { useMemo, useState } from "react";
 import { signup } from "../services/authService";
+import { showSuccess } from '../utils/toast';
 
 // Password strength helpers
 const strengthLabel = (score) => {
@@ -89,7 +90,7 @@ const Register = () => {
       };
       const res = await signup(payload);
       console.log("Signup success:", res);
-      alert("Registration successful! Check your email to verify your account.");
+      showSuccess("Registration successful! Check your email to verify your account.");
       // Optionally redirect: window.location.href = "/"
     } catch (err) {
       setError(err?.response?.data?.error || "Signup failed. Please try again.");
