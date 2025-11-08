@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createJob, uploadFiles, planTargets, enqueueJob, getJob, sseUrl, downloadOutput, downloadZip } from '../services/imageService';
 import PageContainer from '../components/PageContainer';
 import PageHeader from '../components/PageHeader';
+import { showError } from '../utils/toast';
 
 const ALL_FORMATS = ['jpg','png','bmp','gif','tiff','webp'];
 
@@ -23,9 +24,15 @@ export default function ImageConverter() {
     setFiles(prev => [...prev, ...list]);
   };
   const onSelect = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
     const list = Array.from(e.target.files || []);
-    if (!list.length) return;
+    if (!list.length) {
+      e.target.value = '';
+      return;
+    }
     setFiles(prev => [...prev, ...list]);
+    e.target.value = ''; // Reset input
   };
 
   const toggle = (fmt) => setTargets(t => t.includes(fmt) ? t.filter(x=>x!==fmt) : [...t,fmt]);
@@ -41,7 +48,7 @@ export default function ImageConverter() {
       attachSSE(j.id);
     } catch (err) {
       const msg = err?.response?.data?.error || err?.message || 'Failed to start conversion';
-      alert(msg);
+      showError(msg);
       console.error(err);
     }
   };
@@ -114,8 +121,20 @@ export default function ImageConverter() {
           <div className="text-slate-500 text-sm">or choose files</div>
 
           <div className="mt-4">
-            <label className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 cursor-pointer text-sm font-semibold">
-              <input type="file" accept="image/*" multiple onChange={onSelect} className="hidden" />
+            <label 
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 cursor-pointer text-sm font-semibold"
+            >
+              <input 
+                type="file" 
+                accept="image/*" 
+                multiple 
+                onChange={onSelect} 
+                className="hidden"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+              />
               <span>Choose Files</span>
             </label>
           </div>

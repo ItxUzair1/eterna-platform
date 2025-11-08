@@ -1,10 +1,12 @@
 import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { fetchNotifications, markNotificationRead, markAllNotificationsRead } from '../services/notificationService';
+import { useAuth } from './AuthContext';
 
 const NotificationContext = createContext(null);
 
 export const NotificationProvider = ({ children }) => {
+  const { user } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -16,6 +18,13 @@ export const NotificationProvider = ({ children }) => {
   }, []);
 
   const loadNotifications = useCallback(async () => {
+    // Don't fetch notifications if user is not authenticated
+    if (!user) {
+      setNotifications([]);
+      setUnreadCount(0);
+      return;
+    }
+
     setLoading(true);
     try {
       const items = await fetchNotifications({ take: 30 });
@@ -57,13 +66,20 @@ export const NotificationProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [updateUnreadCount]);
+  }, [updateUnreadCount, user]);
 
   useEffect(() => {
-    loadNotifications();
-    const interval = setInterval(loadNotifications, 30000);
-    return () => clearInterval(interval);
-  }, [loadNotifications]);
+    // Only fetch notifications if user is authenticated
+    if (user) {
+      loadNotifications();
+      const interval = setInterval(loadNotifications, 30000);
+      return () => clearInterval(interval);
+    } else {
+      // Clear notifications when user logs out
+      setNotifications([]);
+      setUnreadCount(0);
+    }
+  }, [loadNotifications, user]);
 
   const markRead = useCallback(async (id) => {
     try {

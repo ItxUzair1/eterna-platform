@@ -3,6 +3,7 @@ import { googlesheetsApi } from "../services/googlesheetsService";
 import { useAuth } from "../context/AuthContext";
 import { Plus, Trash2, RefreshCw, ExternalLink, CheckCircle, XCircle } from "lucide-react";
 import clsx from "clsx";
+import { showError, showSuccess } from '../utils/toast';
 
 export default function Integrations() {
   const { user } = useAuth();
@@ -40,7 +41,7 @@ export default function Integrations() {
 
   const handleFetchSpreadsheet = async () => {
     if (!formData.spreadsheetId || !formData.apiKey) {
-      alert("Please enter spreadsheet ID and API key");
+      showError("Please enter spreadsheet ID and API key");
       return;
     }
 
@@ -49,7 +50,7 @@ export default function Integrations() {
       setSpreadsheetInfo(info);
       setStep(2);
     } catch (err) {
-      alert(err?.response?.data?.error || "Failed to fetch spreadsheet. Check your API key and spreadsheet ID.");
+      showError(err?.response?.data?.error || "Failed to fetch spreadsheet. Check your API key and spreadsheet ID.");
     }
   };
 
@@ -77,7 +78,7 @@ export default function Integrations() {
       setFieldMapping(autoMap);
       setStep(3);
     } catch (err) {
-      alert(err?.response?.data?.error || "Failed to fetch sheet headers");
+      showError(err?.response?.data?.error || "Failed to fetch sheet headers");
     }
   };
 
@@ -97,7 +98,7 @@ export default function Integrations() {
       resetForm();
       loadConnections();
     } catch (err) {
-      alert(err?.response?.data?.error || "Failed to save connection");
+      showError(err?.response?.data?.error || "Failed to save connection");
     }
   };
 
@@ -107,7 +108,7 @@ export default function Integrations() {
       await googlesheetsApi.deleteConnection(id);
       loadConnections();
     } catch (err) {
-      alert(err?.response?.data?.error || "Failed to delete connection");
+      showError(err?.response?.data?.error || "Failed to delete connection");
     }
   };
 
@@ -122,10 +123,10 @@ export default function Integrations() {
       } else {
         result = await googlesheetsApi.syncBidirectional(id);
       }
-      alert(`Sync completed! ${JSON.stringify(result)}`);
+      showSuccess(`Sync completed! ${JSON.stringify(result)}`);
       loadConnections();
     } catch (err) {
-      alert(err?.response?.data?.error || "Sync failed");
+      showError(err?.response?.data?.error || "Sync failed");
     } finally {
       setSyncing({ ...syncing, [id]: false });
     }
@@ -162,7 +163,7 @@ export default function Integrations() {
       setFieldMapping(fullConn.fieldMapping || {});
       setShowModal(true);
     } catch (err) {
-      alert("Failed to load connection details");
+      showError("Failed to load connection details");
     }
   };
 

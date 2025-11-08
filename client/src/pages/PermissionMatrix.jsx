@@ -7,6 +7,7 @@ import { PrimaryButton, SubtleButton } from '../components/GradientButton';
 import { useAuth } from '../context/AuthContext';
 import PageContainer from '../components/PageContainer';
 import PageHeader from '../components/PageHeader';
+import { showError, showSuccess } from '../utils/toast';
 
 const APPS = ['crm', 'kanban', 'email', 'money', 'todos', 'admin', 'files', 'notifications', 'image', 'billing'];
 const SCOPES = ['read', 'write', 'manage'];
@@ -77,10 +78,10 @@ export default function PermissionsMatrix() {
       // Reload matrix after save to reflect changes
       setMatrix(res?.matrix || {});
       setDirty({});
-      alert('Permissions updated successfully!');
+      showSuccess('Permissions updated successfully!');
     } catch (err) {
       console.error('Failed to save', err);
-      alert('Failed to save changes');
+      showError('Failed to save changes');
     } finally {
       setSaving(false);
     }

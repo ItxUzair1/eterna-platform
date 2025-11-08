@@ -23,7 +23,8 @@ export const crmApi = {
   uploadFile: (leadId, file) => {
     const form = new FormData();
     form.append("file", file);
-    return api.post(`/crm/leads/${leadId}/files`, form, { headers: { "Content-Type": "multipart/form-data" }});
+    // Don't set Content-Type header - let axios set it automatically with boundary
+    return api.post(`/crm/leads/${leadId}/files`, form);
   },
   deleteFile: (leadId, leadFileId) => api.delete(`/crm/leads/${leadId}/files/${leadFileId}`),
 

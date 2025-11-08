@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { crmApi } from "../../services/crmService";
 import Papa from "papaparse";
+import { showError } from '../../utils/toast';
 
 export default function ImportModal({ open, onClose, onDone }) {
   const [step, setStep] = useState(1); // 1: Upload, 2: Map, 3: Preview, 4: Result
@@ -34,7 +35,7 @@ export default function ImportModal({ open, onClose, onDone }) {
       skipEmptyLines: true,
       complete: (results) => {
         if (results.errors.length > 0 && results.data.length === 0) {
-          alert("Failed to parse CSV. Please check the file format.");
+          showError("Failed to parse CSV. Please check the file format.");
           return;
         }
         setRawData(results.data);
@@ -56,7 +57,7 @@ export default function ImportModal({ open, onClose, onDone }) {
         setStep(2);
       },
       error: (error) => {
-        alert(`Error parsing CSV: ${error.message}`);
+        showError(`Error parsing CSV: ${error.message}`);
       },
     });
   };
@@ -64,7 +65,7 @@ export default function ImportModal({ open, onClose, onDone }) {
   const handleMapping = () => {
     // Validate required field
     if (!mapping.name) {
-      alert("Please map the 'name' column (required field)");
+      showError("Please map the 'name' column (required field)");
       return;
     }
     setStep(3);
@@ -85,7 +86,7 @@ export default function ImportModal({ open, onClose, onDone }) {
       setResult(validation);
       setStep(4);
     } catch (error) {
-      alert(error?.response?.data?.error || "Import failed. Please try again.");
+      showError(error?.response?.data?.error || "Import failed. Please try again.");
     } finally {
       setImporting(false);
     }

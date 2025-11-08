@@ -5,6 +5,7 @@ import TrialBanner from '../components/banners/TrialBanner';
 import useBillingStore from '../store/billingStore';
 import PageContainer from '../components/PageContainer';
 import PageHeader from '../components/PageHeader';
+import { showError } from '../utils/toast';
 
 export default function Billing() {
   const [data, setData] = useState(null);
@@ -30,7 +31,7 @@ export default function Billing() {
           window.open('https://dashboard.stripe.com/test/settings/billing/portal', '_blank');
         }
       } else {
-        alert(`Error: ${msg}`);
+        showError(`Error: ${msg}`);
       }
       console.error('Portal error:', e.response?.data || e);
     }
@@ -44,18 +45,19 @@ export default function Billing() {
 
   return (
     <PageContainer>
-      <PageHeader
-        title="Billing"
-        description="Manage your subscription, payment methods, and billing information"
-        actions={
-          <a
-            href="/dashboard"
-            className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/30 px-4 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition"
-          >
-            ← Back to dashboard
-          </a>
-        }
-      />
+      <div className="min-h-[calc(100vh-6rem)] bg-white">
+        <PageHeader
+          title="Billing"
+          description="Manage your subscription, payment methods, and billing information"
+          actions={
+            <a
+              href="/dashboard"
+              className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-white px-4 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-50 transition"
+            >
+              ← Back to dashboard
+            </a>
+          }
+        />
 
         {data && (
           <div className="mt-3">
@@ -64,17 +66,17 @@ export default function Billing() {
         )}
 
         {error && (
-          <p className="mt-3 rounded-xl border border-rose-400/40 bg-rose-50/10 text-rose-200 px-3 py-2">
+          <p className="mt-3 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 px-3 py-2">
             {error}
           </p>
         )}
 
         {isTestMode && (
-          <div className="mt-4 rounded-2xl border border-amber-300/40
-                          bg-gradient-to-b from-amber-50/10 to-amber-100/10
-                          text-amber-100 px-4 py-3 backdrop-blur">
+          <div
+            className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 text-amber-800 px-4 py-3"
+          >
             <p className="font-semibold">Test Mode: Use Stripe test cards</p>
-            <ul className="mt-2 list-disc pl-5 space-y-1 text-amber-100/90">
+            <ul className="mt-2 list-disc pl-5 space-y-1">
               <li><span className="font-semibold">Success:</span> 4242 4242 4242 4242</li>
               <li><span className="font-semibold">Any future date:</span> Use any future expiry date</li>
               <li><span className="font-semibold">CVC:</span> Any 3 digits (e.g., 123)</li>
@@ -84,64 +86,96 @@ export default function Billing() {
         )}
 
         {!data ? (
-          <p className="mt-6 text-slate-300">Loading...</p>
+          <p className="mt-6 text-slate-500">Loading...</p>
         ) : (
-          <div className="mt-6 rounded-2xl border border-white/15 bg-white/10 backdrop-blur-xl shadow-2xl shadow-slate-900/30 p-5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <p className="text-slate-300">Plan</p>
-                <p className="text-lg font-semibold text-white">{data.plan}</p>
+          <div className="mt-6">
+            {/* Summary card */}
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="rounded-xl border border-slate-200 p-4">
+                  <p className="text-slate-500">Plan</p>
+                  <p className="text-lg font-semibold text-slate-900">{data.plan}</p>
+                </div>
+                <div className="rounded-xl border border-slate-200 p-4">
+                  <p className="text-slate-500">Status</p>
+                  <p className="text-lg font-semibold text-slate-900">{data.status}</p>
+                </div>
+                <div className="rounded-xl border border-slate-200 p-4">
+                  <p className="text-slate-500">Period end</p>
+                  <p className="text-lg font-semibold text-slate-900">
+                    {data.currentPeriodEnd ? new Date(data.currentPeriodEnd).toLocaleString() : '-'}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-200 p-4">
+                  <p className="text-slate-500">Seats</p>
+                  <p className="text-lg font-semibold text-slate-900">
+                    {data.seats.used} / {data.seats.entitled}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-200 p-4 sm:col-span-2 lg:col-span-2">
+                  <p className="text-slate-500">Storage</p>
+                  <p className="text-lg font-semibold text-slate-900">
+                    {Math.round((data.storage.usedGB || 0) * 10) / 10} GB / {data.storage.entitledGB} GB
+                  </p>
+                  <div className="mt-3 h-2 w-full rounded-full bg-slate-100">
+                    <div
+                      className="h-2 rounded-full bg-gradient-to-r from-indigo-500 to-violet-500"
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          ((data.storage.usedGB || 0) / (data.storage.entitledGB || 1)) * 100
+                        ).toFixed(2)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
               </div>
-              <div>
-                <p className="text-slate-300">Status</p>
-                <p className="text-lg font-semibold text-white">{data.status}</p>
-              </div>
-              <div>
-                <p className="text-slate-300">Period end</p>
-                <p className="text-lg font-semibold text-white">
-                  {data.currentPeriodEnd ? new Date(data.currentPeriodEnd).toLocaleString() : '-'}
-                </p>
-              </div>
-              <div>
-                <p className="text-slate-300">Seats</p>
-                <p className="text-lg font-semibold text-white">
-                  {data.seats.used} / {data.seats.entitled}
-                </p>
-              </div>
-              <div className="sm:col-span-2">
-                <p className="text-slate-300">Storage</p>
-                <p className="text-lg font-semibold text-white">
-                  {Math.round((data.storage.usedGB || 0) * 10) / 10} GB / {data.storage.entitledGB} GB
-                </p>
+
+              {/* Actions */}
+              <div className="mt-5 flex flex-wrap gap-2">
+                <button
+                  onClick={onPortal}
+                  type="button"
+                  className="rounded-xl px-4 py-2 font-semibold text-white
+                             bg-gradient-to-r from-indigo-500 via-blue-500 to-violet-500
+                             hover:from-indigo-600 hover:via-blue-600 hover:to-violet-600
+                             shadow-md hover:shadow-lg transition focus-visible:outline-none
+                             focus-visible:ring-2 focus-visible:ring-indigo-300"
+                >
+                  Manage billing
+                </button>
+                <button
+                  onClick={onUpgrade}
+                  type="button"
+                  className="rounded-xl px-4 py-2 border border-slate-200 bg-white text-slate-900
+                             hover:bg-slate-50 transition shadow-sm hover:shadow-md
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+                >
+                  Change plan / Add storage
+                </button>
               </div>
             </div>
 
-            <div className="mt-5 flex flex-wrap gap-2">
-              <button
-                onClick={onPortal}
-                type="button"
-                className="rounded-xl px-4 py-2 font-semibold text-white
-                           bg-gradient-to-r from-cyan-400 via-indigo-500 to-violet-500 bg-[length:200%_100%]
-                           hover:bg-[position:100%_0%]
-                           shadow-lg shadow-cyan-400/25 hover:shadow-cyan-400/35
-                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
-              >
-                Manage billing
-              </button>
-              <button
-                onClick={onUpgrade}
-                type="button"
-                className="rounded-xl px-4 py-2 bg-white/90 text-slate-900 border border-white/20
-                           hover:-translate-y-0.5 transition shadow-md hover:shadow-lg
-                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
-              >
-                Change plan / Add storage
-              </button>
+            {/* Helpful notes card (optional, responsive) */}
+            <div className="mt-6 grid gap-4 sm:grid-cols-2">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <h3 className="text-sm font-semibold text-slate-900">Invoices & receipts</h3>
+                <p className="mt-1 text-sm text-slate-600">
+                  Access your billing history and download invoices from the customer portal after connecting Stripe. 
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <h3 className="text-sm font-semibold text-slate-900">Seat management</h3>
+                <p className="mt-1 text-sm text-slate-600">
+                  Add or remove seats from your plan as your team grows; prorations apply based on Stripe settings.
+                </p>
+              </div>
             </div>
           </div>
         )}
 
-      <UpgradeModal />
+        <UpgradeModal />
+      </div>
     </PageContainer>
   );
 }

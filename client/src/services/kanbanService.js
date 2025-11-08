@@ -23,8 +23,7 @@ export const attachFile = async ({ cardId, file }) => {
   const form = new FormData();
   form.append('cardId', cardId);
   form.append('file', file);
-  const { data } = await api.post('/kanban/cards/attach', form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
+  // Don't set Content-Type header - let axios set it automatically with boundary
+  const { data } = await api.post('/kanban/cards/attach', form);
   return data;
 };

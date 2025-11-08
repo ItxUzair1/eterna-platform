@@ -38,6 +38,10 @@ export function loadAuth() {
 http.interceptors.request.use((config) => {
   const at = localStorage.getItem('accessToken');
   if (at) config.headers.Authorization = `Bearer ${at}`;
+  // Don't override Content-Type for FormData - let axios set it automatically with boundary
+  if (config.data instanceof FormData) {
+    delete config.headers['Content-Type'];
+  }
   return config;
 });
 
@@ -63,7 +67,15 @@ http.interceptors.response.use(
         // No refresh token, clear auth and redirect
         localStorage.removeItem('accessToken');
         setAuthHeader(null);
-        if (!window.location.pathname.includes('/login')) {
+        // Don't redirect if already on auth pages
+        const pathname = window.location.pathname;
+        const isAuthPage = pathname.includes('/login') || 
+                          pathname.includes('/register') || 
+                          pathname.includes('/verify-email') || 
+                          pathname.includes('/forgot-password') || 
+                          pathname.includes('/reset-password') ||
+                          pathname.includes('/accept-invite');
+        if (!isAuthPage) {
           window.location.href = '/login';
         }
         return Promise.reject(error);
@@ -116,8 +128,14 @@ http.interceptors.response.use(
         setAuthHeader(null);
         
         // Only redirect to login if not already on auth pages
-        if (!window.location.pathname.includes('/login') && 
-            !window.location.pathname.includes('/signup')) {
+        const pathname = window.location.pathname;
+        const isAuthPage = pathname.includes('/login') || 
+                          pathname.includes('/register') || 
+                          pathname.includes('/verify-email') || 
+                          pathname.includes('/forgot-password') || 
+                          pathname.includes('/reset-password') ||
+                          pathname.includes('/accept-invite');
+        if (!isAuthPage) {
           window.location.href = '/login';
         }
         return Promise.reject(e);

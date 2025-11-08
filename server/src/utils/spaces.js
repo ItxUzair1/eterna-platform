@@ -41,15 +41,28 @@ function normalizeEndpoint(endpoint) {
 	}
 }
 
-const s3 = new S3Client({
-	region: SPACES_REGION,
-	endpoint: normalizeEndpoint(SPACES_ENDPOINT),
-	forcePathStyle: true,
-	credentials: {
-		accessKeyId: SPACES_KEY || '',
-		secretAccessKey: SPACES_SECRET || ''
+// Initialize S3 client with proper configuration for DigitalOcean Spaces
+let s3;
+try {
+	if (SPACES_ENDPOINT && SPACES_KEY && SPACES_SECRET) {
+		s3 = new S3Client({
+			region: SPACES_REGION || 'us-east-1',
+			endpoint: normalizeEndpoint(SPACES_ENDPOINT),
+			forcePathStyle: true, // Required for DigitalOcean Spaces
+			credentials: {
+				accessKeyId: SPACES_KEY,
+				secretAccessKey: SPACES_SECRET
+			}
+		});
+		console.log('[spaces] S3 Client initialized successfully');
+	} else {
+		console.warn('[spaces] S3 Client not initialized - missing configuration');
+		s3 = null;
 	}
-});
+} catch (err) {
+	console.error('[spaces] Failed to initialize S3 client:', err);
+	s3 = null;
+}
 
 function uniqueKey(prefix, originalName) {
 	const safe = String(originalName || 'file').replace(/[^A-Za-z0-9._-]+/g, '_');
@@ -60,19 +73,39 @@ function uniqueKey(prefix, originalName) {
 function createS3Storage(prefix) {
 	return {
 		_handleFile: function (req, file, cb) {
-			let callbackCalled = false;
-			const safeCallback = (err, result) => {
-				if (callbackCalled) {
-					console.warn('[spaces] Callback already called, ignoring duplicate call');
-					return;
-				}
-				callbackCalled = true;
-				cb(err, result);
-			};
+		let callbackCalled = false;
+		const safeCallback = (err, result) => {
+			if (callbackCalled) {
+				console.warn('[spaces] Callback already called, ignoring duplicate call');
+				return;
+			}
+			callbackCalled = true;
+			cb(err, result);
+		};
 
-			try {
+		// Check if S3 client is initialized
+		if (!s3) {
+			const err = new Error('S3 client not initialized. Check DigitalOcean Spaces configuration.');
+			err.code = 'SPACES_CONFIG_MISSING';
+			return safeCallback(err);
+		}
+
+		try {
+				// Validate configuration before starting upload
+				if (!SPACES_BUCKET || !SPACES_ENDPOINT || !SPACES_KEY || !SPACES_SECRET) {
+					const missing = [];
+					if (!SPACES_BUCKET) missing.push('SPACES_BUCKET');
+					if (!SPACES_ENDPOINT) missing.push('SPACES_ENDPOINT');
+					if (!SPACES_KEY) missing.push('SPACES_ACCESS_KEY');
+					if (!SPACES_SECRET) missing.push('SPACES_SECRET_KEY');
+					const err = new Error(`DigitalOcean Spaces configuration missing: ${missing.join(', ')}`);
+					err.code = 'SPACES_CONFIG_MISSING';
+					return safeCallback(err);
+				}
+
 				const key = uniqueKey(prefix, file.originalname);
-				console.log(`[spaces] Starting upload: ${key} (${file.originalname}, ${file.size} bytes)`);
+				console.log(`[spaces] Starting upload: ${key} (${file.originalname}, ${file.size || 'unknown'} bytes)`);
+				console.log(`[spaces] Config check - Bucket: ${SPACES_BUCKET}, Endpoint: ${SPACES_ENDPOINT}, Region: ${SPACES_REGION}`);
 				const chunks = [];
 				
 				file.stream.on('data', (chunk) => {
@@ -86,6 +119,7 @@ function createS3Storage(prefix) {
 							const contentType = file.mimetype || 'application/octet-stream';
 							
 							console.log(`[spaces] Uploading to Spaces: ${key} (${buffer.length} bytes, ${contentType})`);
+							console.log(`[spaces] S3 Client config - Endpoint: ${s3.config.endpoint}, Region: ${s3.config.region}`);
 							
 							const cmd = new PutObjectCommand({
 								Bucket: SPACES_BUCKET,
@@ -95,9 +129,9 @@ function createS3Storage(prefix) {
 								ACL: 'private'
 							});
 							
-							await s3.send(cmd);
-							
-							console.log(`[spaces] Upload successful: ${key}`);
+							console.log(`[spaces] Sending PutObjectCommand to bucket: ${SPACES_BUCKET}, key: ${key}`);
+							const result = await s3.send(cmd);
+							console.log(`[spaces] Upload successful: ${key}`, result.$metadata ? `Status: ${result.$metadata.httpStatusCode}` : '');
 							
 							safeCallback(null, {
 								key: key,
@@ -113,11 +147,17 @@ function createS3Storage(prefix) {
 						} catch (err) {
 							console.error('[spaces] Error uploading to S3:', err);
 							console.error('[spaces] Error details:', {
+								name: err.name,
 								message: err.message,
 								code: err.code,
-								$metadata: err.$metadata
+								$metadata: err.$metadata,
+								stack: err.stack
 							});
-							safeCallback(err);
+							// Create a more descriptive error
+							const uploadErr = new Error(`Failed to upload to DigitalOcean Spaces: ${err.message}`);
+							uploadErr.code = err.code || 'SPACES_UPLOAD_ERROR';
+							uploadErr.originalError = err;
+							safeCallback(uploadErr);
 						}
 					})().catch((err) => {
 						console.error('[spaces] Unhandled promise rejection in upload:', err);
@@ -170,11 +210,17 @@ function spacesUploadMiddleware(field = 'file', { maxCount = 1, prefix = 'upload
 
 async function getSignedDownloadUrl(key, expiresSeconds = 3600) {
 	if (!key) return null;
+	if (!s3) {
+		throw new Error('S3 client not initialized. Check DigitalOcean Spaces configuration.');
+	}
 	const cmd = new GetObjectCommand({ Bucket: SPACES_BUCKET, Key: key });
 	return await getSignedUrl(s3, cmd, { expiresIn: expiresSeconds });
 }
 
 async function uploadBufferToSpaces({ key, buffer, contentType = 'application/octet-stream', acl = 'private' }) {
+	if (!s3) {
+		throw new Error('S3 client not initialized. Check DigitalOcean Spaces configuration.');
+	}
 	const cmd = new PutObjectCommand({
 		Bucket: SPACES_BUCKET,
 		Key: key,

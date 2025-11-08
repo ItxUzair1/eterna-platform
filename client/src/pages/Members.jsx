@@ -7,6 +7,7 @@ import { PrimaryButton, SubtleButton } from '../components/GradientButton';
 import { useAuth } from '../context/AuthContext';
 import PageContainer from '../components/PageContainer';
 import PageHeader from '../components/PageHeader';
+import { showError, showSuccess } from '../utils/toast';
 
 export default function Members() {
   const { user: currentUser } = useAuth();
@@ -42,10 +43,10 @@ export default function Members() {
     try {
       await sendInvite(invite.email.trim(), invite.roleName);
       setInvite({ email: '', roleName: 'Member' });
-      alert('Invitation sent successfully!');
+      showSuccess('Invitation sent successfully!');
       load(); // Reload to see new member if they already existed
     } catch (err) {
-      alert(err?.response?.data?.error || 'Failed to send invitation');
+      showError(err?.response?.data?.error || 'Failed to send invitation');
     } finally {
       setLoadingInvite(false);
     }
@@ -56,7 +57,7 @@ export default function Members() {
       await assignRole(userId, roleId);
       load();
     } catch (err) {
-      alert('Failed to update role');
+      showError('Failed to update role');
     }
   };
 
@@ -78,7 +79,7 @@ export default function Members() {
       setEditingUser(null);
       load();
     } catch (err) {
-      alert(err?.response?.data?.error || 'Failed to update user');
+      showError(err?.response?.data?.error || 'Failed to update user');
     }
   };
 
@@ -88,7 +89,7 @@ export default function Members() {
       await deleteUser(userId);
       load();
     } catch (err) {
-      alert(err?.response?.data?.error || 'Failed to delete user');
+      showError(err?.response?.data?.error || 'Failed to delete user');
     }
   };
 
