@@ -241,7 +241,7 @@ async function listMembers({ tenantId }) {
 async function listMinimalUsers({ tenantId }) {
   const users = await prisma.user.findMany({
     where: { tenantId, isActive: true },
-    select: { id: true, email: true, username: true },
+    select: { id: true, email: true, username: true, isActive: true },
     orderBy: { createdAt: 'desc' }
   });
   return { users };
@@ -264,6 +264,6 @@ module.exports = {
   getUserMatrix, updateUserMatrix,
   listRoles, createRole, updateRole, deleteRole,
   getTeamPermissions, setTeamPermissions,
-  listMembers, assignRole,
+  listMembers, listMinimalUsers, assignRole,
   getMyApps
 };

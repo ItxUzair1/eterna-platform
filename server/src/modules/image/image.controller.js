@@ -47,7 +47,22 @@ exports.createJob = [
 // Upload originals and persist in File
 exports.uploadFiles = [
   param('jobId').isInt(),
-  spacesUploadMiddleware('files', { maxCount: MAX_FILES, prefix: 'image/originals' }),
+  (req, res, next) => {
+    const upload = spacesUploadMiddleware('files', { maxCount: MAX_FILES, prefix: 'image/originals' });
+    upload(req, res, (err) => {
+      if (err) {
+        console.error('[Image] Upload error:', err);
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({ error: 'File too large. Maximum size is 200MB total.' });
+        }
+        if (err.code === 'SPACES_CONFIG_MISSING') {
+          return res.status(500).json({ error: err.message || 'DigitalOcean Spaces is not configured.' });
+        }
+        return res.status(400).json({ error: err.message || 'File upload failed' });
+      }
+      next();
+    });
+  },
   async (req, res) => {
     try {
       if (!val(req, res)) return;
@@ -73,8 +88,7 @@ exports.uploadFiles = [
       }
       res.json({ jobId: Number(req.params.jobId), files: saved });
     } catch (e) {
-      console.error('uploadFiles failed:', e);
-      const missing = require('../../utils/spaces');
+      console.error('[Image] Upload processing error:', e);
       res.status(500).json({ error: e.message || 'Upload failed. Check Spaces configuration.' });
     }
   }

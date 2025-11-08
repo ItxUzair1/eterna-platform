@@ -1,7 +1,6 @@
 const { S3Client, PutObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const multer = require('multer');
-const multerS3 = require('multer-s3');
 
 // Trim whitespace and remove quotes that might be in .env file
 const SPACES_ENDPOINT = (process.env.SPACES_ENDPOINT || '').trim().replace(/^["']|["']$/g, '');
@@ -57,7 +56,92 @@ function uniqueKey(prefix, originalName) {
 	return `${prefix}/${Date.now()}-${Math.round(Math.random()*1e9)}-${safe}`;
 }
 
-function spacesUploadMiddleware(field = 'file', { maxCount = 1, prefix = 'uploads' } = {}) {
+// Custom multer storage engine for AWS SDK v3
+function createS3Storage(prefix) {
+	return {
+		_handleFile: function (req, file, cb) {
+			let callbackCalled = false;
+			const safeCallback = (err, result) => {
+				if (callbackCalled) {
+					console.warn('[spaces] Callback already called, ignoring duplicate call');
+					return;
+				}
+				callbackCalled = true;
+				cb(err, result);
+			};
+
+			try {
+				const key = uniqueKey(prefix, file.originalname);
+				console.log(`[spaces] Starting upload: ${key} (${file.originalname}, ${file.size} bytes)`);
+				const chunks = [];
+				
+				file.stream.on('data', (chunk) => {
+					chunks.push(chunk);
+				});
+				
+				file.stream.on('end', () => {
+					(async () => {
+						try {
+							const buffer = Buffer.concat(chunks);
+							const contentType = file.mimetype || 'application/octet-stream';
+							
+							console.log(`[spaces] Uploading to Spaces: ${key} (${buffer.length} bytes, ${contentType})`);
+							
+							const cmd = new PutObjectCommand({
+								Bucket: SPACES_BUCKET,
+								Key: key,
+								Body: buffer,
+								ContentType: contentType,
+								ACL: 'private'
+							});
+							
+							await s3.send(cmd);
+							
+							console.log(`[spaces] Upload successful: ${key}`);
+							
+							safeCallback(null, {
+								key: key,
+								location: key,
+								bucket: SPACES_BUCKET,
+								etag: null,
+								contentType: contentType,
+								metadata: {},
+								size: buffer.length,
+								originalname: file.originalname,
+								mimetype: file.mimetype
+							});
+						} catch (err) {
+							console.error('[spaces] Error uploading to S3:', err);
+							console.error('[spaces] Error details:', {
+								message: err.message,
+								code: err.code,
+								$metadata: err.$metadata
+							});
+							safeCallback(err);
+						}
+					})().catch((err) => {
+						console.error('[spaces] Unhandled promise rejection in upload:', err);
+						safeCallback(err);
+					});
+				});
+				
+				file.stream.on('error', (err) => {
+					console.error('[spaces] File stream error:', err);
+					safeCallback(err);
+				});
+			} catch (err) {
+				console.error('[spaces] Error in storage handler:', err);
+				safeCallback(err);
+			}
+		},
+		_removeFile: function (req, file, cb) {
+			// Optional: implement file deletion if needed
+			cb(null);
+		}
+	};
+}
+
+function spacesUploadMiddleware(field = 'file', { maxCount = 1, prefix = 'uploads', maxFileSize = 50 * 1024 * 1024 } = {}) {
 	// Check Spaces configuration
 	const missing = [];
 	if (!SPACES_ENDPOINT) missing.push('SPACES_ENDPOINT');
@@ -74,24 +158,11 @@ function spacesUploadMiddleware(field = 'file', { maxCount = 1, prefix = 'upload
 		};
 	}
 	
-	const storage = multerS3({
-		s3,
-		bucket: SPACES_BUCKET,
-		acl: 'private',
-		contentType: multerS3.AUTO_CONTENT_TYPE,
-		key: (_req, file, cb) => {
-			try {
-				cb(null, uniqueKey(prefix, file.originalname));
-			} catch (err) {
-				console.error('[spaces] Error generating key:', err);
-				cb(err);
-			}
-		}
-	});
+	const storage = createS3Storage(prefix);
 	const uploader = multer({ 
 		storage,
 		limits: {
-			fileSize: 5 * 1024 * 1024 // 5MB limit for profile photos
+			fileSize: maxFileSize // Configurable file size limit (default 50MB)
 		}
 	});
 	return maxCount === 1 ? uploader.single(field) : uploader.array(field, maxCount);
