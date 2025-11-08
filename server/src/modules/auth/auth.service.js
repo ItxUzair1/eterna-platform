@@ -118,8 +118,25 @@ const signup = async (data) => {
     email, username, password, roleName: role === 'Enterprise' ? 'Owner' : 'Entrepreneur',
     profile: { firstName, lastName, enterpriseName }
   });
-  const verifyUrl = `${process.env.WEB_URL}/verify-email?token=${verifyToken}`;
-  await sendEmail({ to: email, subject: 'Verify your Eterna email', html: `<p>Verify your email:</p><p><a href="${verifyUrl}">${verifyUrl}</a></p>` });
+  const webUrl = process.env.WEB_URL || 'http://localhost:5173';
+  const verifyUrl = `${webUrl}/verify-email?token=${verifyToken}`;
+  await sendEmail({ 
+    to: email, 
+    subject: 'Verify your Eterna email', 
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #4f46e5;">Welcome to Eterna!</h2>
+        <p>Thank you for registering. Please verify your email address by clicking the button below:</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${verifyUrl}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">Verify Email Address</a>
+        </div>
+        <p style="color: #666; font-size: 14px;">Or copy and paste this link into your browser:</p>
+        <p style="color: #666; font-size: 12px; word-break: break-all;">${verifyUrl}</p>
+        <p style="color: #666; font-size: 12px; margin-top: 20px;">This link will expire in 24 hours.</p>
+      </div>
+    `,
+    bodyText: `Welcome to Eterna! Please verify your email by visiting: ${verifyUrl}`
+  });
   return user;
 };
 
@@ -130,18 +147,20 @@ const verifyEmail = async (token, newEmail = null) => {
   const user = await prisma.user.findUnique({ where: { id: rec.userId } });
   if (!user) throw new Error('User not found');
 
+  const pendingEmail = newEmail || rec.token || null;
+
   await prisma.$transaction(async (tx) => {
     // If newEmail is provided, this is an email change request
-    if (newEmail && newEmail !== user.email) {
+    if (pendingEmail && pendingEmail !== user.email) {
       // Check if new email is already in use
-      const existing = await tx.user.findFirst({ where: { email: newEmail, id: { not: user.id } } });
+      const existing = await tx.user.findFirst({ where: { email: pendingEmail, id: { not: user.id } } });
       if (existing) throw new Error('Email already in use');
       
       // Update email and mark as verified
       await tx.user.update({ 
         where: { id: user.id }, 
         data: { 
-          email: newEmail,
+          email: pendingEmail,
           emailVerifiedAt: now, 
           tokenVersion: { increment: 1 } 
         } 
@@ -157,15 +176,23 @@ const verifyEmail = async (token, newEmail = null) => {
     await tx.emailVerification.update({ where: { id: rec.id }, data: { usedAt: now } });
     await tx.emailVerification.deleteMany({ where: { userId: user.id, id: { not: rec.id } } });
   });
-  return { ok: true };
+  return { ok: true, newEmail: pendingEmail };
 };
 
 const signin = async ({ identifier, password, ip, userAgent }) => {
   const user = await prisma.user.findFirst({ where: { OR: [{ email: identifier }, { username: identifier }] } });
-  if (!user) throw new Error('Invalid credentials');
+  if (!user) {
+    console.warn('[signin] user not found for identifier', identifier);
+    throw new Error('Invalid credentials');
+  }
   const ok = await bcrypt.compare(password, user.passwordHash);
-  if (!ok) throw new Error('Invalid credentials');
+  if (!ok) {
+    console.warn('[signin] invalid password for userId', user.id);
+    throw new Error('Invalid credentials');
+  }
   if (!user.emailVerifiedAt) throw new Error('Email not verified. Please check your inbox and click the verification link.');
+
+  console.log('[signin] success for userId', user.id, 'email', user.email);
 
   const accessToken = signAccess({ id: user.id, tenantId: user.tenantId, roleId: user.roleId, tokenVersion: user.tokenVersion });
   const refreshToken = await issueRefresh({ user, ip, userAgent });
@@ -267,34 +294,6 @@ const updateProfile = async ({ userId, payload }) => {
   return user;
 };
 
-const changeEmail = async ({ userId, newEmail }) => {
-  const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user) throw new Error('User not found');
-  
-  if (user.email === newEmail) throw new Error('New email is the same as current email');
-  
-  // Check if email is already in use
-  const existing = await prisma.user.findFirst({ where: { email: newEmail, id: { not: userId } } });
-  if (existing) throw new Error('Email already in use');
-  
-  // Create email change verification token
-  const raw = makeToken();
-  await prisma.emailVerification.create({
-    data: { 
-      tenantId: user.tenantId, 
-      userId: user.id, 
-      hashedToken: sha256(raw), 
-      expiresAt: token24h()
-    }
-  });
-  
-  // Send verification email to new address with token that includes newEmail
-  const verifyUrl = `${process.env.WEB_URL}/verify-email?token=${raw}&newEmail=${encodeURIComponent(newEmail)}`;
-  await sendEmail({ to: newEmail, subject: 'Verify your new email address', html: `<p>Click to verify your new email:</p><p><a href="${verifyUrl}">${verifyUrl}</a></p>` });
-  
-  return { ok: true };
-};
-
 const changePassword = async ({ userId, oldPassword, newPassword }) => {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   const ok = await bcrypt.compare(oldPassword, user.passwordHash);
@@ -309,5 +308,5 @@ module.exports = {
   signup, verifyEmail, signin, refreshSession,
   requestPasswordReset, resetPassword,
   invite, acceptInvite,
-  updateProfile, changeEmail, changePassword
+  updateProfile, changePassword
 };

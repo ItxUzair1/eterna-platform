@@ -4,6 +4,9 @@ import { Plus, Download, Filter, X, Upload, FileText, Calendar, DollarSign, Chev
 import { usePermission } from "../modules/auth/usePermission";
 import TransactionForm from "../modules/money/TransactionForm";
 import MoneyCharts from "../modules/money/MoneyCharts";
+import PageContainer from "../components/PageContainer";
+import PageHeader from "../components/PageHeader";
+import { useNotifications } from "../context/NotificationContext";
 
 function ExportDropdown({ onExport }) {
   const [open, setOpen] = useState(false);
@@ -121,11 +124,14 @@ export default function MoneyManagement() {
     fetchStats();
   }, [filters]);
 
+  const { refresh: refreshNotifications } = useNotifications();
+  
   const handleSave = () => {
     setFormOpen(false);
     setEditingId(null);
     fetchData();
     fetchStats();
+    refreshNotifications();
   };
 
   const handleDelete = async (id) => {
@@ -134,6 +140,7 @@ export default function MoneyManagement() {
       await moneyApi.deleteTransaction(id);
       fetchData();
       fetchStats();
+      refreshNotifications();
     } catch (error) {
       alert("Failed to delete transaction");
     }
@@ -223,15 +230,12 @@ export default function MoneyManagement() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      <div className="p-4 sm:p-6 lg:p-8">
-        {/* Header */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-2">
-            <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
-              <DollarSign className="w-8 h-8 text-indigo-600" />
-              Money Management
-            </h1>
+    <PageContainer>
+      <PageHeader
+        title="Money Management"
+        description="Track revenue, expenses, invoices, and cash flow with ease"
+        actions={
+          <div className="flex items-center gap-2">
             <div className="flex items-center gap-2">
               <div className="relative">
                 <button
@@ -266,8 +270,8 @@ export default function MoneyManagement() {
               )}
             </div>
           </div>
-          <p className="text-slate-600">Track your revenue and expenses in real-time</p>
-        </div>
+        }
+      />
 
         {/* Filters Panel */}
         {filtersOpen && (
@@ -491,8 +495,7 @@ export default function MoneyManagement() {
             categories={categories}
           />
         )}
-      </div>
-    </div>
+    </PageContainer>
   );
 }
 

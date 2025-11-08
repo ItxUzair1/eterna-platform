@@ -1,6 +1,8 @@
 // client/src/pages/ImageConverter.jsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { createJob, uploadFiles, planTargets, enqueueJob, getJob, sseUrl, downloadOutput, downloadZip } from '../services/imageService';
+import PageContainer from '../components/PageContainer';
+import PageHeader from '../components/PageHeader';
 
 const ALL_FORMATS = ['jpg','png','bmp','gif','tiff','webp'];
 
@@ -66,14 +68,11 @@ export default function ImageConverter() {
   const bytesMB = (totalBytes/1024/1024).toFixed(1);
 
   return (
-    <div className="min-h-[calc(100vh-56px)] bg-gradient-to-b from-slate-50 to-slate-100">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-6">
-        <header className="mb-6">
-          <h1 className="text-2xl sm:text-3xl font-semibold text-slate-800">Image Converter</h1>
-          <p className="text-slate-600 text-sm mt-1">
-            Convert images to {ALL_FORMATS.map(f=>f.toUpperCase()).join(', ')}. Up to 100 files, total ≤ 200MB.
-          </p>
-        </header>
+    <PageContainer>
+      <PageHeader
+        title="Image Converter"
+        description={`Convert images to ${ALL_FORMATS.map(f=>f.toUpperCase()).join(', ')}. Up to 100 files, total ≤ 200MB.`}
+      />
 
         {/* Targets */}
         <section className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-5">
@@ -208,7 +207,6 @@ export default function ImageConverter() {
             </ul>
           </section>
         )}
-      </div>
-    </div>
+    </PageContainer>
   );
 }

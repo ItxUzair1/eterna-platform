@@ -2,6 +2,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Users, Shield, UsersRound, Layers, FileText, Settings } from 'lucide-react';
+import PageContainer from '../components/PageContainer';
+import PageHeader from '../components/PageHeader';
 
 export default function AdminDashboard() {
   const adminFeatures = [
@@ -48,17 +50,11 @@ export default function AdminDashboard() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50/30 to-purple-50/30 p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 bg-clip-text text-transparent mb-2">
-            Admin Dashboard
-          </h1>
-          <p className="text-slate-600 text-lg">
-            Manage your enterprise: Teams, Permissions, and Members
-          </p>
-        </div>
+    <PageContainer>
+      <PageHeader
+        title="Admin Dashboard"
+        description="Manage your enterprise: Teams, Permissions, and Members"
+      />
 
         {/* Quick Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
@@ -155,8 +151,7 @@ export default function AdminDashboard() {
             </Link>
           </div>
         </div>
-      </div>
-    </div>
+    </PageContainer>
   );
 }
 

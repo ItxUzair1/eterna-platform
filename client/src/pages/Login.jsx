@@ -25,7 +25,22 @@ const Login = () => {
       // Refresh auth context before navigating
       window.location.href = "/dashboard";
     } catch (err) {
-      const errorMessage = err?.response?.data?.error || err?.message || 'Failed to sign in. Please check your credentials.';
+      const status = err?.response?.status;
+      const serverError = err?.response?.data?.error;
+      let errorMessage = 'Failed to sign in. Please check your credentials.';
+
+      if (status === 401) {
+        if (serverError?.toLowerCase().includes('not verified')) {
+          errorMessage = 'Please verify your email. Check your inbox for the verification link.';
+        } else {
+          errorMessage = 'Invalid email/username or password.';
+        }
+      } else if (status === 429) {
+        errorMessage = 'Too many attempts. Please wait a moment and try again.';
+      } else if (serverError) {
+        errorMessage = serverError;
+      }
+
       setError(errorMessage);
       console.error('Sign-in error:', err);
     } finally {

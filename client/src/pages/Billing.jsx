@@ -3,6 +3,8 @@ import http from '../services/api';
 import UpgradeModal from '../billing/UpgradeModal';
 import TrialBanner from '../components/banners/TrialBanner';
 import useBillingStore from '../store/billingStore';
+import PageContainer from '../components/PageContainer';
+import PageHeader from '../components/PageHeader';
 
 export default function Billing() {
   const [data, setData] = useState(null);
@@ -41,25 +43,19 @@ export default function Billing() {
   const isTestMode = window.location.hostname === 'localhost' || import.meta.env.DEV;
 
   return (
-    <div
-      className="min-h-screen w-full p-4 sm:p-6
-                 bg-slate-950 text-slate-100
-                 bg-[radial-gradient(800px_400px_at_10%_0%,rgba(99,102,241,.22),transparent_60%),radial-gradient(800px_400px_at_90%_100%,rgba(168,85,247,.22),transparent_60%)]"
-    >
-      <div className="mx-auto max-w-3xl">
-        <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-violet-400 to-pink-400">
-          Billing
-        </h1>
-
-        <p className="mt-2">
+    <PageContainer>
+      <PageHeader
+        title="Billing"
+        description="Manage your subscription, payment methods, and billing information"
+        actions={
           <a
             href="/dashboard"
-            className="text-indigo-300 underline hover:text-indigo-200 transition
-                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 rounded px-1"
+            className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/30 px-4 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition"
           >
             ← Back to dashboard
           </a>
-        </p>
+        }
+      />
 
         {data && (
           <div className="mt-3">
@@ -145,8 +141,7 @@ export default function Billing() {
           </div>
         )}
 
-        <UpgradeModal />
-      </div>
-    </div>
+      <UpgradeModal />
+    </PageContainer>
   );
 }

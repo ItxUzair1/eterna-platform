@@ -1,4 +1,5 @@
 const svc = require('../permissions/permissions.service');
+const { createNotification } = require('../../utils/notify');
 
 module.exports = {
   async getUserMatrix(req, res) {
@@ -6,12 +7,43 @@ module.exports = {
     res.json(data);
   },
   async updateUserMatrix(req, res) {
+    const targetUserId = +req.params.userId;
+    const changes = req.body.changes || [];
     const data = await svc.updateUserMatrix({
       tenantId: req.context.tenantId,
       actorId: req.context.userId,
-      targetUserId: +req.params.userId,
-      changes: req.body.changes || []
+      targetUserId,
+      changes
     });
+    // Get target user info
+    const prisma = require('../../config/db');
+    const targetUser = await prisma.user.findUnique({ 
+      where: { id: targetUserId }, 
+      select: { firstName: true, lastName: true, username: true, email: true } 
+    });
+    const userName = targetUser?.firstName || targetUser?.username || targetUser?.email || 'User';
+    // Notify the user whose permissions were changed
+    if (changes.length > 0) {
+      await createNotification({
+        tenantId: req.context.tenantId,
+        userId: targetUserId,
+        type: 'info',
+        title: 'Permissions updated',
+        message: `Your app permissions have been updated.`,
+        data: { userId: targetUserId, changesCount: changes.length }
+      });
+      // Notify the admin who made the change
+      if (req.context.userId !== targetUserId) {
+        await createNotification({
+          tenantId: req.context.tenantId,
+          userId: req.context.userId,
+          type: 'success',
+          title: 'User permissions updated',
+          message: `Permissions for ${userName} have been updated.`,
+          data: { targetUserId, changesCount: changes.length }
+        });
+      }
+    }
     res.json(data);
   },
   async listRoles(req, res) {
@@ -20,22 +52,64 @@ module.exports = {
   async createRole(req, res) {
     const { name, description, defaults } = req.body;
     const role = await svc.createRole({ tenantId: req.context.tenantId, actorId: req.context.userId, name, description, defaults });
+    await createNotification({
+      tenantId: req.context.tenantId,
+      userId: req.context.userId,
+      type: 'success',
+      title: 'Role created',
+      message: `Role "${name}" has been created successfully.`,
+      data: { roleId: role.id, roleName: name }
+    });
     res.status(201).json({ role });
   },
   async updateRole(req, res) {
     const { name, description, defaults } = req.body;
     const role = await svc.updateRole({ tenantId: req.context.tenantId, actorId: req.context.userId, roleId: +req.params.roleId, name, description, defaults });
+    await createNotification({
+      tenantId: req.context.tenantId,
+      userId: req.context.userId,
+      type: 'info',
+      title: 'Role updated',
+      message: `Role "${name}" has been updated.`,
+      data: { roleId: role.id, roleName: name }
+    });
     res.json({ role });
   },
   async deleteRole(req, res) {
+    const prisma = require('../../config/db');
+    const role = await prisma.role.findUnique({ where: { id: +req.params.roleId }, select: { name: true } });
     await svc.deleteRole({ tenantId: req.context.tenantId, actorId: req.context.userId, roleId: +req.params.roleId });
+    await createNotification({
+      tenantId: req.context.tenantId,
+      userId: req.context.userId,
+      type: 'warning',
+      title: 'Role deleted',
+      message: `Role "${role?.name || 'Unknown'}" has been deleted.`,
+      data: { roleId: +req.params.roleId }
+    });
     res.json({ ok: true });
   },
   async getTeamPermissions(req, res) {
     res.json(await svc.getTeamPermissions({ tenantId: req.context.tenantId, teamId: +req.params.teamId }));
   },
   async setTeamPermissions(req, res) {
-    res.json(await svc.setTeamPermissions({ tenantId: req.context.tenantId, actorId: req.context.userId, teamId: +req.params.teamId, grants: req.body.grants || [] }));
+    const teamId = +req.params.teamId;
+    const grants = req.body.grants || [];
+    const result = await svc.setTeamPermissions({ tenantId: req.context.tenantId, actorId: req.context.userId, teamId, grants });
+    // Get team info
+    const prisma = require('../../config/db');
+    const team = await prisma.team.findUnique({ where: { id: teamId }, select: { name: true } });
+    if (grants.length > 0) {
+      await createNotification({
+        tenantId: req.context.tenantId,
+        userId: req.context.userId,
+        type: 'success',
+        title: 'Team permissions updated',
+        message: `Permissions for team "${team?.name || 'Unknown'}" have been updated.`,
+        data: { teamId, changesCount: grants.length }
+      });
+    }
+    res.json(result);
   },
   async listMembers(req, res) {
     res.json(await svc.listMembers({ tenantId: req.context.tenantId }));
@@ -44,7 +118,36 @@ module.exports = {
     res.json(await svc.listMinimalUsers({ tenantId: req.context.tenantId }));
   },
   async assignRole(req, res) {
-    const out = await svc.assignRole({ tenantId: req.context.tenantId, actorId: req.context.userId, userId: +req.params.userId, roleId: req.body.roleId });
+    const targetUserId = +req.params.userId;
+    const roleId = req.body.roleId;
+    const out = await svc.assignRole({ tenantId: req.context.tenantId, actorId: req.context.userId, userId: targetUserId, roleId });
+    // Get user and role info
+    const prisma = require('../../config/db');
+    const [targetUser, role] = await Promise.all([
+      prisma.user.findUnique({ where: { id: targetUserId }, select: { firstName: true, lastName: true, username: true, email: true } }),
+      prisma.role.findUnique({ where: { id: roleId }, select: { name: true } })
+    ]);
+    const userName = targetUser?.firstName || targetUser?.username || targetUser?.email || 'User';
+    // Notify the user whose role was changed
+    await createNotification({
+      tenantId: req.context.tenantId,
+      userId: targetUserId,
+      type: 'info',
+      title: 'Role assigned',
+      message: `You have been assigned the role "${role?.name || 'Unknown'}".`,
+      data: { userId: targetUserId, roleId, roleName: role?.name }
+    });
+    // Notify the admin who assigned the role
+    if (req.context.userId !== targetUserId) {
+      await createNotification({
+        tenantId: req.context.tenantId,
+        userId: req.context.userId,
+        type: 'success',
+        title: 'Role assigned to user',
+        message: `${userName} has been assigned the role "${role?.name || 'Unknown'}".`,
+        data: { targetUserId, roleId, roleName: role?.name }
+      });
+    }
     res.json(out);
   },
   async updateMember(req, res) {
@@ -84,6 +187,26 @@ module.exports = {
       });
       
       await audit({ tenantId: req.context.tenantId, userId: req.context.userId }, 'permissions.update_member', 'User', +userId, { firstName, lastName, jobTitle, phone, isActive });
+      // Notify the user whose profile was updated
+      await createNotification({
+        tenantId: req.context.tenantId,
+        userId: +userId,
+        type: 'info',
+        title: 'Profile updated',
+        message: 'Your profile information has been updated.',
+        data: { userId: +userId }
+      });
+      // Notify admin if different user
+      if (req.context.userId !== +userId) {
+        await createNotification({
+          tenantId: req.context.tenantId,
+          userId: req.context.userId,
+          type: 'success',
+          title: 'User profile updated',
+          message: `Profile for ${updated.firstName || updated.username || updated.email || 'User'} has been updated.`,
+          data: { targetUserId: +userId }
+        });
+      }
       res.json({ user: updated });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -105,8 +228,17 @@ module.exports = {
         return res.status(400).json({ error: 'You cannot delete your own account' });
       }
       
+      const deletedUser = await prisma.user.findUnique({ where: { id: +userId }, select: { firstName: true, lastName: true, username: true, email: true } });
       await prisma.user.delete({ where: { id: +userId } });
       await audit({ tenantId: req.context.tenantId, userId: req.context.userId }, 'permissions.delete_member', 'User', +userId, {});
+      await createNotification({
+        tenantId: req.context.tenantId,
+        userId: req.context.userId,
+        type: 'warning',
+        title: 'User deleted',
+        message: `User ${deletedUser?.firstName || deletedUser?.username || deletedUser?.email || 'Unknown'} has been deleted.`,
+        data: { deletedUserId: +userId }
+      });
       res.json({ ok: true });
     } catch (err) {
       res.status(500).json({ error: err.message });

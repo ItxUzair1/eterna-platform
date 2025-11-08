@@ -3,7 +3,11 @@ import api from './api';
 
 export const signup = (payload) => api.post('/auth/signup', payload).then(r => r.data);
 export const signin = (payload) => api.post('/auth/signin', payload).then(r => r.data);
-export const verifyEmail = (token) => api.get(`/auth/verify-email?token=${encodeURIComponent(token)}`).then(r => r.data);
+export const verifyEmail = (token, newEmail) => {
+  const params = new URLSearchParams({ token: token || '' });
+  if (newEmail) params.append('newEmail', newEmail);
+  return api.get(`/auth/verify-email?${params.toString()}`).then(r => r.data);
+};
 
 export const refresh = (refreshToken) => api.post('/auth/refresh', { refreshToken }).then(r => r.data);
 

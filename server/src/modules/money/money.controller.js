@@ -1,5 +1,6 @@
 // server/src/modules/money/money.controller.js
 const svc = require("./money.service");
+const { createNotification } = require('../../utils/notify');
 
 async function listTransactions(req, res, next) {
   try {
@@ -22,6 +23,14 @@ async function createTransaction(req, res, next) {
   try {
     const ctx = req.context;
     const transaction = await svc.createTransaction(ctx, req.body);
+    await createNotification({
+      tenantId: ctx.tenantId,
+      userId: ctx.userId,
+      type: 'success',
+      title: 'Transaction added',
+      message: `${transaction.type || 'Transaction'} recorded for ${transaction.amount}.`,
+      data: { transactionId: transaction.id }
+    });
     res.status(201).json(transaction);
   } catch (e) { next(e); }
 }
@@ -30,6 +39,14 @@ async function updateTransaction(req, res, next) {
   try {
     const ctx = req.context;
     const transaction = await svc.updateTransaction(ctx, +req.params.id, req.body);
+    await createNotification({
+      tenantId: ctx.tenantId,
+      userId: ctx.userId,
+      type: 'info',
+      title: 'Transaction updated',
+      message: 'A transaction record has been updated.',
+      data: { transactionId: transaction.id }
+    });
     res.json(transaction);
   } catch (e) { next(e); }
 }
@@ -38,6 +55,14 @@ async function deleteTransaction(req, res, next) {
   try {
     const ctx = req.context;
     await svc.deleteTransaction(ctx, +req.params.id);
+    await createNotification({
+      tenantId: ctx.tenantId,
+      userId: ctx.userId,
+      type: 'warning',
+      title: 'Transaction deleted',
+      message: 'A transaction record was removed.',
+      data: { transactionId: Number(req.params.id) }
+    });
     res.json({ ok: true });
   } catch (e) { next(e); }
 }

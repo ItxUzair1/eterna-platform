@@ -5,6 +5,8 @@ import { sendInvite } from '../services/authService';
 import api from '../services/api';
 import { PrimaryButton, SubtleButton } from '../components/GradientButton';
 import { useAuth } from '../context/AuthContext';
+import PageContainer from '../components/PageContainer';
+import PageHeader from '../components/PageHeader';
 
 export default function Members() {
   const { user: currentUser } = useAuth();
@@ -112,15 +114,11 @@ export default function Members() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50/30 to-purple-50/30 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 bg-clip-text text-transparent">
-            Team Directory
-          </h1>
-          <p className="text-slate-600 mt-1">Manage team members, roles, and permissions</p>
-        </div>
+    <PageContainer>
+      <PageHeader
+        title="Team Directory"
+        description="Manage team members, roles, and permissions"
+      />
 
         {/* Invite Section */}
         <div className="rounded-2xl border border-white/60 bg-gradient-to-br from-white/90 to-indigo-50/30 backdrop-blur-xl shadow-xl p-6">
@@ -306,7 +304,6 @@ export default function Members() {
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </PageContainer>
   );
 }

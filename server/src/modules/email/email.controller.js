@@ -2,6 +2,7 @@
 const emailService = require('./email.service');
 const { withSingleFile, uploadFormFile } = require('../../utils/fileHandler');
 const { getSignedDownloadUrl } = require('../../utils/spaces');
+const { createNotification } = require('../../utils/notify');
 const prisma = require('../../config/db');
 
 const sendEmail = async (req, res) => {
@@ -14,6 +15,14 @@ const sendEmail = async (req, res) => {
       replyToMessageId,
       headers
     });
+    await createNotification({
+      tenantId: req.user.tenantId,
+      userId: req.user.id,
+      type: 'success',
+      title: 'Email sent',
+      message: subject ? `"${subject}" was sent successfully.` : 'Email sent successfully.',
+      data: { to }
+    });
     res.json(result);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -23,6 +32,13 @@ const sendEmail = async (req, res) => {
 const saveDraft = async (req, res) => {
   try {
     const result = await emailService.saveDraft({ tenantId: req.user.tenantId, userId: req.user.id, ...req.body });
+    await createNotification({
+      tenantId: req.user.tenantId,
+      userId: req.user.id,
+      type: 'info',
+      title: 'Draft saved',
+      message: result.subject ? `Draft "${result.subject}" saved.` : 'Email draft saved.'
+    });
     res.json(result);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -41,6 +57,13 @@ const updateDraft = async (req, res) => {
 const sendDraft = async (req, res) => {
   try {
     const result = await emailService.sendDraft({ tenantId: req.user.tenantId, draftId: +req.params.id });
+    await createNotification({
+      tenantId: req.user.tenantId,
+      userId: req.user.id,
+      type: 'success',
+      title: 'Draft sent',
+      message: 'Draft email has been sent.'
+    });
     res.json(result);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -117,6 +140,15 @@ const syncInbox = async (req, res) => {
     const sinceDays = Number(req.query.sinceDays || 7);
     const max = Number(req.query.max || 200);
     const result = await emailService.syncInbox({ tenantId: req.user.tenantId, sinceDays, max });
+    if (result?.synced > 0) {
+      await createNotification({
+        tenantId: req.user.tenantId,
+        userId: req.user.id,
+        type: 'info',
+        title: 'New email received',
+        message: `${result.synced} new message${result.synced > 1 ? 's' : ''} synced to your inbox.`
+      });
+    }
     res.json(result);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -136,6 +168,14 @@ const saveTemplate = async (req, res) => {
   try {
     const { name, subject, body } = req.body;
     const template = await emailService.saveEmailTemplate({ tenantId: req.user.tenantId, name, subject, body });
+    await createNotification({
+      tenantId: req.user.tenantId,
+      userId: req.user.id,
+      type: 'success',
+      title: 'Email template saved',
+      message: `Template "${name}" has been saved successfully.`,
+      data: { templateName: name }
+    });
     res.json(template);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -184,6 +224,14 @@ const createMailAccount = async (req, res) => {
       password,
       scope
     });
+    await createNotification({
+      tenantId: req.user.tenantId,
+      userId: req.user.id,
+      type: 'success',
+      title: 'Email account configured',
+      message: `SMTP account for ${username} has been configured successfully.`,
+      data: { accountId: account.id }
+    });
     res.json({ id: account.id, message: 'SMTP account created successfully.' });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -201,6 +249,14 @@ const updateMailAccount = async (req, res) => {
       username,
       password,
       scope
+    });
+    await createNotification({
+      tenantId: req.user.tenantId,
+      userId: req.user.id,
+      type: 'info',
+      title: 'Email account updated',
+      message: 'SMTP account settings have been updated successfully.',
+      data: { accountId: account.id }
     });
     res.json({ id: account.id, message: 'SMTP account updated successfully.' });
   } catch (err) {

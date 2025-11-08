@@ -8,9 +8,11 @@ import { todoService } from '../services/todoService';
 import { toast } from 'react-hot-toast';
 import { Bars3Icon, PlusIcon } from '@heroicons/react/24/outline';
 import { usePermission } from '../modules/auth/usePermission';
+import { useNotifications } from '../context/NotificationContext';
 
 const Todo = () => {
   const { allowed: canWrite } = usePermission("todos", "write");
+  const { refresh: refreshNotifications } = useNotifications();
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
@@ -207,7 +209,7 @@ const Todo = () => {
           todo={editingTodo}
           categories={categories}
           onClose={() => { setShowTodoModal(false); setEditingTodo(null); }}
-          onSubmit={async (...args) => { await (editingTodo ? todoService.updateTodo(...args) : todoService.createTodo(args[0])); fetchTodos(); setShowTodoModal(false); setEditingTodo(null); }}
+          onSubmit={async (...args) => { await (editingTodo ? todoService.updateTodo(...args) : todoService.createTodo(args[0])); fetchTodos(); setShowTodoModal(false); setEditingTodo(null); refreshNotifications(); }}
         />
       )}
       {showCategoryModal && (

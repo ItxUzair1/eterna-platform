@@ -7,6 +7,9 @@ import {
 import { listUsers } from '../services/userService';
 import Toggle from '../components/Toggle';
 import { PrimaryButton, SubtleButton } from '../components/GradientButton';
+import PageContainer from '../components/PageContainer';
+import PageHeader from '../components/PageHeader';
+import { useNotifications } from '../context/NotificationContext';
 
 const APPS = ['crm', 'kanban', 'email', 'money', 'todos', 'admin', 'files', 'notifications', 'image', 'billing'];
 const SCOPES = ['read', 'write', 'manage'];
@@ -21,6 +24,7 @@ export default function Teams() {
   const [allUsers, setAllUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const { refresh: refreshNotifications } = useNotifications();
 
   // Create/Edit Team
   const [showTeamForm, setShowTeamForm] = useState(false);
@@ -109,6 +113,7 @@ export default function Teams() {
       setTeamForm({ name: '' });
       setShowTeamForm(false);
       loadTeams();
+      refreshNotifications();
     } catch (err) {
       alert(err?.response?.data?.error || 'Failed to create team');
     } finally {
@@ -124,6 +129,7 @@ export default function Teams() {
       setEditingTeam(null);
       setTeamForm({ name: '' });
       loadTeams();
+      refreshNotifications();
     } catch (err) {
       alert(err?.response?.data?.error || 'Failed to update team');
     } finally {
@@ -139,6 +145,7 @@ export default function Teams() {
         setSelectedTeamId('');
       }
       loadTeams();
+      refreshNotifications();
     } catch (err) {
       alert('Failed to delete team');
     }
@@ -156,6 +163,7 @@ export default function Teams() {
       await addTeamMember(selectedTeamId, userId);
       loadMembers(selectedTeamId);
       loadAllUsers();
+      refreshNotifications();
     } catch (err) {
       alert('Failed to add member');
     }
@@ -166,6 +174,7 @@ export default function Teams() {
       await removeTeamMember(selectedTeamId, userId);
       loadMembers(selectedTeamId);
       loadAllUsers();
+      refreshNotifications();
     } catch (err) {
       alert('Failed to remove member');
     }
@@ -180,6 +189,7 @@ export default function Teams() {
       setShowInviteForm(false);
       alert('Invitation sent successfully!');
       loadMembers(selectedTeamId);
+      refreshNotifications();
     } catch (err) {
       alert(err?.response?.data?.error || 'Failed to send invitation');
     } finally {
@@ -203,6 +213,7 @@ export default function Teams() {
       });
       await setTeamPermissions(selectedTeamId, grants);
       setDirty({});
+      refreshNotifications();
     } catch (err) {
       alert('Failed to save permissions');
     } finally {
@@ -234,20 +245,16 @@ export default function Teams() {
   const availableUsers = allUsers.filter(u => !memberUserIds.includes(u.id));
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50/30 to-purple-50/30 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-      <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 bg-clip-text text-transparent">
-              Teams & Groups
-            </h1>
-            <p className="text-slate-600 mt-1">Create teams, manage members, and set permissions</p>
-          </div>
+    <PageContainer>
+      <PageHeader
+        title="Teams & Groups"
+        description="Create teams, manage members, and set permissions"
+        actions={
           <PrimaryButton onClick={() => { setShowTeamForm(true); setEditingTeam(null); setTeamForm({ name: '' }); }}>
             + Create Team
           </PrimaryButton>
-        </div>
+        }
+      />
 
         {/* Create/Edit Team Modal */}
         {showTeamForm && (
@@ -518,7 +525,6 @@ export default function Teams() {
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </PageContainer>
   );
 }
