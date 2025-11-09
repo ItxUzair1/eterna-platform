@@ -648,10 +648,6 @@ export default function Email() {
                             type="file"
                             ref={fileInputRef}
                             onChange={handleFileSelect}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                            }}
                             multiple
                             className="hidden"
                             id="file-attachment"
@@ -659,14 +655,6 @@ export default function Email() {
                           <label
                             htmlFor="file-attachment"
                             className="px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg cursor-pointer transition border border-slate-200 dark:border-slate-700"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              // Manually trigger file input click to avoid form submission
-                              if (fileInputRef.current) {
-                                fileInputRef.current.click();
-                              }
-                            }}
                           >
                             Attach
                           </label>
