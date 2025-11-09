@@ -62,6 +62,7 @@ export default function SettingsAccount() {
   };
 
   const handlePhotoUpload = async (e) => {
+    console.log('[SettingsAccount] handlePhotoUpload called');
     e.preventDefault();
     e.stopPropagation();
     const file = e.target.files?.[0];
@@ -70,28 +71,41 @@ export default function SettingsAccount() {
       return;
     }
     
+    console.log('[SettingsAccount] Photo upload started:', { name: file.name, size: file.size, type: file.type });
+    
     // Validate file type
     if (!file.type.startsWith('image/')) {
       flash("err", "Please select an image file");
+      if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
     
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       flash("err", "Image size must be less than 5MB");
+      if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
     
     setUploadingPhoto(true);
     try {
+      console.log('[SettingsAccount] Uploading photo to server...');
       const updated = await uploadPhoto(file);
+      console.log('[SettingsAccount] Photo upload successful:', updated);
       setMe(updated);
       flash("ok", "Profile picture updated");
     } catch (err) {
-      flash("err", err?.response?.data?.error || "Failed to upload photo");
+      console.error('[SettingsAccount] Photo upload error:', err);
+      console.error('[SettingsAccount] Error response:', err.response?.data);
+      const errorMsg = err?.response?.data?.error || err?.message || "Failed to upload photo";
+      if (errorMsg.includes('Spaces') || errorMsg.includes('DigitalOcean') || errorMsg.includes('SPACES_CONFIG')) {
+        flash("err", "File storage is not configured. Please contact your administrator.");
+      } else {
+        flash("err", errorMsg);
+      }
     } finally {
       setUploadingPhoto(false);
-      e.target.value = ''; // Reset input
+      if (fileInputRef.current) fileInputRef.current.value = ''; // Reset input
     }
   };
 
@@ -254,7 +268,13 @@ export default function SettingsAccount() {
                   />
                   <button
                     type="button"
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={(e) => {
+                      e.preventDefault();
+          
+                      if (fileInputRef.current && !fileInputRef.current.disabled) {
+                        fileInputRef.current.click();
+                      }
+                    }}
                     disabled={uploadingPhoto}
                     className="inline-flex items-center justify-center rounded-xl px-4 py-2 bg-gradient-to-r from-indigo-500 via-violet-500 to-cyan-500 hover:from-indigo-600 hover:via-violet-600 hover:to-cyan-600 text-white font-medium shadow-sm hover:shadow-md active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                   >

@@ -12,7 +12,6 @@ import { loadAuth } from './services/api.js';
 loadAuth();
 
 ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
     <BrowserRouter>
       <AuthProvider>
         <NotificationProvider>
@@ -21,5 +20,4 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         </NotificationProvider>
       </AuthProvider>
     </BrowserRouter>
-  </React.StrictMode>
 );

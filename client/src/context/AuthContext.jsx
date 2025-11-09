@@ -11,8 +11,9 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const refreshAuth = useCallback(async () => {
-    setLoading(true);
+  const refreshAuth = useCallback(async (options = {}) => {
+    const { silent = false } = options;
+    if (!silent) setLoading(true);
     setError(null);
     try {
       // Check if user has access token
@@ -22,7 +23,7 @@ export const AuthProvider = ({ children }) => {
         setEnabledApps([]);
         setPermissions({});
         setError('No access token');
-        setLoading(false);
+        if (!silent) setLoading(false);
         return;
       }
 
@@ -56,15 +57,19 @@ export const AuthProvider = ({ children }) => {
       setPermissions({});
       setError(e?.response?.data?.error || 'Unauthenticated');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
   // Initial bootstrap
   useEffect(() => {
     refreshAuth();
-    const onFocus = () => refreshAuth();
-    const onVisible = () => { if (document.visibilityState === 'visible') refreshAuth(); };
+    const onFocus = () => refreshAuth({ silent: true });
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        refreshAuth({ silent: true });
+      }
+    };
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onVisible);
     return () => {

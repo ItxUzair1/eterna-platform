@@ -17,7 +17,7 @@ import { showError } from "../utils/toast";
 const ALL_FORMATS = ["jpg", "png", "bmp", "gif", "tiff", "webp"];
 
 export default function ImageConverter() {
-  const [targets, setTargets] = useState(["jpg", "webp"]);
+  const [targets, setTargets] = useState([]);
   const [files, setFiles] = useState([]);
   const [job, setJob] = useState(null);
   const [events, setEvents] = useState([]);
