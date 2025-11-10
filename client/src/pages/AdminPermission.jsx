@@ -48,7 +48,11 @@ function AdminPermissions() {
     const next = { ...matrix, [app]: { ...(matrix[app]||{}), [scope]: !current } };
     setMatrix(next);
     setDirty(d => ({ ...d, [`${app}:${scope}`]: !current }));
+    console.log("Matrix Updated:", next);
   };
+
+  
+
 
   const save = async () => {
     const changes = Object.entries(dirty).map(([k, enabled]) => {
@@ -65,7 +69,7 @@ function AdminPermissions() {
         <button disabled={!Object.keys(dirty).length}
           onClick={save}
           className={`px-4 py-2 rounded-md text-white ${Object.keys(dirty).length ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-slate-400'}`}>
-          Save changes
+          Save changeing
         </button>
       </div>
       <div className="flex gap-4 items-center">
@@ -79,7 +83,7 @@ function AdminPermissions() {
       {!!selectedUser && (
         <div className="rounded-lg border overflow-hidden">
           <div className="grid grid-cols-4 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
-            <div>App</div><div>Read</div><div>Write</div><div>Manage</div>
+            <div>App</div><div>Readsss</div><div>Write</div><div>Manage</div>
           </div>
           <div>
             {rows.map(r => (

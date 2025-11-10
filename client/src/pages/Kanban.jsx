@@ -650,15 +650,14 @@ function CardModal({ open, onClose, card, setCardState, onSave, onDelete, onAtta
               <input
                 type="file"
                 onChange={(e) => {
-                  e.preventDefault();
                   e.stopPropagation();
-                  if (e.target.files?.[0]) {
-                    onAttach(e.target.files[0]);
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    onAttach(file);
                   }
                   e.target.value = '';
                 }}
                 onClick={(e) => {
-                  e.preventDefault();
                   e.stopPropagation();
                 }}
                 className="text-sm file:mr-3 file:px-4 file:py-2 file:rounded-lg file:border-0

@@ -31,7 +31,6 @@ import { BrowserRouter } from 'react-router-dom';
 
 export default function App() {
   return (
-     <BrowserRouter>
     <Routes>
       {/* Public auth routes */}
       <Route path="/" element={<Login />} />
@@ -72,6 +71,5 @@ export default function App() {
       {/* Catch-all */}
       <Route path="*" element={<div className="p-6">Not Found</div>} />
     </Routes>
-    </BrowserRouter>
   );
 }

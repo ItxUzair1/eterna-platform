@@ -143,7 +143,7 @@ export default function EmailSettings() {
               </div>
               <div className="md:col-span-6">
                 <InputField
-                  label={account ? 'Password (App Password - leave blank to keep current)' : 'Password (App Password)'}
+                  label={account ? 'Password (App Password - leave blank to keep current)' : 'Password (App Password) By Clicking on the following link https://support.google.com/accounts/answer/185833?hl=en-GB)'}
                   type="password"
                   placeholder="Enter 16-character app password"
                   value={formData.password}
