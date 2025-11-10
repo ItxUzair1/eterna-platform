@@ -27,6 +27,8 @@ export const crmApi = {
     return api.post(`/crm/leads/${leadId}/files`, form);
   },
   deleteFile: (leadId, leadFileId) => api.delete(`/crm/leads/${leadId}/files/${leadFileId}`),
+  exportLeadToCsv: (leadId, fileId) => api.post(`/crm/leads/${leadId}/files/${fileId}/export`),
+  downloadFile: (leadId, leadFileId) => api.get(`/crm/leads/${leadId}/files/${leadFileId}/download`, { responseType: 'blob' }),
 
   // Import
   importCsv: (file, mapping) => {

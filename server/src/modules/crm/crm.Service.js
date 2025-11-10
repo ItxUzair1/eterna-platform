@@ -181,6 +181,169 @@ async function deleteLeadFile(ctx, leadId, leadFileId) {
   await audit(ctx, "lead.file.delete", "Lead", leadId, { leadFileId });
 }
 
+async function exportLeadToCsv(ctx, leadId, fileId) {
+  ensureScope(ctx, "crm", "write");
+  
+  // Get the lead data
+  const lead = await prisma.lead.findFirstOrThrow({
+    where: { id: leadId, tenantId: ctx.tenantId },
+    include: { 
+      status: { select: { value: true } },
+      owner: { select: { username: true, email: true } }
+    },
+  });
+
+  // Verify the file is linked to this lead
+  const leadFile = await prisma.leadFile.findFirstOrThrow({
+    where: { leadId, fileId, tenantId: ctx.tenantId },
+    include: { file: true },
+  });
+
+  const file = leadFile.file;
+
+  // Check if file is CSV
+  if (!file.mime.includes('csv') && !file.path.endsWith('.csv')) {
+    throw new Error("File must be a CSV file");
+  }
+
+  // Download existing CSV from S3
+  const SPACES_BUCKET = process.env.SPACES_BUCKET?.trim().replace(/^["']|["']$/g, '');
+  if (!SPACES_BUCKET) {
+    throw new Error("SPACES_BUCKET not configured");
+  }
+
+  const getObjectCmd = new GetObjectCommand({
+    Bucket: SPACES_BUCKET,
+    Key: file.path,
+  });
+  
+  const response = await s3.send(getObjectCmd);
+  const chunks = [];
+  for await (const chunk of response.Body) {
+    chunks.push(chunk);
+  }
+  const existingCsv = Buffer.concat(chunks).toString('utf-8');
+
+  // Parse existing CSV to check if headers exist
+  const lines = existingCsv.split('\n').filter(line => line.trim());
+  let csvContent = existingCsv;
+  
+  // Prepare lead data row
+  const leadRow = [
+    lead.name || '',
+    lead.company || '',
+    lead.email || '',
+    lead.phone || '',
+    lead.status?.value || '',
+    lead.owner?.username || lead.owner?.email || '',
+    lead.tags || '',
+    new Date(lead.createdAt).toISOString(),
+    new Date(lead.updatedAt).toISOString(),
+  ];
+  const leadRowCsv = leadRow.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',');
+  
+  // If CSV has headers, append data row; otherwise create new CSV with headers
+  if (lines.length === 0 || !lines[0].toLowerCase().includes('name')) {
+    // Create new CSV with headers
+    const headers = ['Name', 'Company', 'Email', 'Phone', 'Status', 'Owner', 'Tags', 'Created', 'Updated'];
+    csvContent = [
+      headers.map(h => `"${h}"`).join(','),
+      leadRowCsv
+    ].join('\n');
+  } else {
+    // Check if lead already exists in CSV (by name and email combination)
+    const leadExists = lines.some(line => {
+      const lowerLine = line.toLowerCase();
+      const nameMatch = lead.name && lowerLine.includes(`"${lead.name.toLowerCase()}"`);
+      const emailMatch = lead.email && lowerLine.includes(`"${lead.email.toLowerCase()}"`);
+      return nameMatch || (nameMatch && emailMatch);
+    });
+    
+    if (!leadExists) {
+      // Append to existing CSV
+      csvContent = existingCsv.trim() + '\n' + leadRowCsv;
+    } else {
+      // Update existing row if found
+      const updatedLines = lines.map(line => {
+        const lowerLine = line.toLowerCase();
+        const nameMatch = lead.name && lowerLine.includes(`"${lead.name.toLowerCase()}"`);
+        const emailMatch = lead.email && lowerLine.includes(`"${lead.email.toLowerCase()}"`);
+        if (nameMatch || (nameMatch && emailMatch)) {
+          return leadRowCsv;
+        }
+        return line;
+      });
+      csvContent = updatedLines.join('\n');
+    }
+  }
+
+  // Upload updated CSV back to S3
+  const { PutObjectCommand } = require("@aws-sdk/client-s3");
+  const putObjectCmd = new PutObjectCommand({
+    Bucket: SPACES_BUCKET,
+    Key: file.path,
+    Body: Buffer.from(csvContent, 'utf-8'),
+    ContentType: 'text/csv',
+    ACL: 'private'
+  });
+  
+  await s3.send(putObjectCmd);
+
+  // Update file size in database
+  const newSize = Buffer.byteLength(csvContent, 'utf-8');
+  const sizeDiff = newSize - file.size;
+  
+  await prisma.file.update({
+    where: { id: fileId },
+    data: { size: newSize },
+  });
+
+  // Update storage usage
+  if (sizeDiff !== 0) {
+    const { incrementStorageUsage, decrementStorageUsage } = require("../../utils/fileHandler.js");
+    if (sizeDiff > 0) {
+      await incrementStorageUsage(ctx.tenantId, sizeDiff);
+    } else {
+      await decrementStorageUsage(ctx.tenantId, Math.abs(sizeDiff));
+    }
+  }
+
+  await audit(ctx, "lead.exportToCsv", "Lead", leadId, { fileId });
+  return { success: true, message: "Lead saved to CSV file" };
+}
+
+async function downloadLeadFile(ctx, leadId, leadFileId) {
+  ensureScope(ctx, "crm", "read");
+  
+  const leadFile = await prisma.leadFile.findFirstOrThrow({
+    where: { id: leadFileId, leadId, tenantId: ctx.tenantId },
+    include: { file: true },
+  });
+
+  const SPACES_BUCKET = process.env.SPACES_BUCKET?.trim().replace(/^["']|["']$/g, '');
+  if (!SPACES_BUCKET) {
+    throw new Error("SPACES_BUCKET not configured");
+  }
+
+  const getObjectCmd = new GetObjectCommand({
+    Bucket: SPACES_BUCKET,
+    Key: leadFile.file.path,
+  });
+  
+  const response = await s3.send(getObjectCmd);
+  const chunks = [];
+  for await (const chunk of response.Body) {
+    chunks.push(chunk);
+  }
+  const fileBuffer = Buffer.concat(chunks);
+
+  return {
+    buffer: fileBuffer,
+    filename: leadFile.file.path.split('/').pop() || `file-${leadFileId}.csv`,
+    mimeType: leadFile.file.mime || 'application/octet-stream',
+  };
+}
+
 async function importCsv(ctx, req) {
   ensureScope(ctx, "crm", "write");
   
@@ -369,4 +532,6 @@ module.exports = {
   uploadLeadFile,
   deleteLeadFile,
   importCsv,
+  exportLeadToCsv,
+  downloadLeadFile,
 };

@@ -143,6 +143,32 @@ const deleteLeadFile = async (req, res, n) => { try { await svc.deleteLeadFile(r
 // Import
 const importCsv = async (req, res, n) => { try { const result = await svc.importCsv(req.context, req); res.json(result); } catch (e) { n(e); } };
 
+// Export lead to CSV file
+const exportLeadToCsv = async (req, res, n) => {
+  try {
+    const result = await svc.exportLeadToCsv(req.context, +req.params.leadId, +req.params.fileId);
+    await createNotification({
+      tenantId: req.context.tenantId,
+      userId: req.context.userId,
+      type: 'success',
+      title: 'Lead saved to CSV',
+      message: result.message,
+      data: { leadId: +req.params.leadId, fileId: +req.params.fileId }
+    });
+    res.json(result);
+  } catch (e) { n(e); }
+};
+
+// Download lead file
+const downloadLeadFile = async (req, res, n) => {
+  try {
+    const result = await svc.downloadLeadFile(req.context, +req.params.leadId, +req.params.leadFileId);
+    res.setHeader('Content-Type', result.mimeType);
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.send(result.buffer);
+  } catch (e) { n(e); }
+};
+
 module.exports = {
   listLeads,
   getLead,
@@ -161,4 +187,6 @@ module.exports = {
   uploadLeadFile,
   deleteLeadFile,
   importCsv,
+  exportLeadToCsv,
+  downloadLeadFile,
 };

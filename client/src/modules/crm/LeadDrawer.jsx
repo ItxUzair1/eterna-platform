@@ -161,6 +161,54 @@ export default function LeadDrawer({ open, onClose, leadId, mode, onSaved }) {
     }
   };
 
+  const saveLeadToCsv = async (fileId) => {
+    const effectiveLeadId = currentLeadId || leadId;
+    if (!effectiveLeadId) {
+      showError("Please save the lead first");
+      return;
+    }
+    try {
+      await crmApi.exportLeadToCsv(effectiveLeadId, fileId);
+      // Refresh files list to get updated file size
+      const filesRes = await crmApi.listFiles(effectiveLeadId);
+      setFiles(filesRes.data?.items || filesRes.data || []);
+    } catch (error) {
+      console.error("Failed to save lead to CSV:", error);
+      showError(error?.response?.data?.error || "Failed to save lead to CSV. Please try again.");
+    }
+  };
+
+  const downloadFile = async (leadFileId) => {
+    const effectiveLeadId = currentLeadId || leadId;
+    if (!effectiveLeadId) return;
+    try {
+      const response = await crmApi.downloadFile(effectiveLeadId, leadFileId);
+      // Get filename from Content-Disposition header or use default
+      const contentDisposition = response.headers['content-disposition'] || response.headers['Content-Disposition'];
+      let filename = 'download.csv';
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/i);
+        if (filenameMatch) {
+          filename = filenameMatch[1].replace(/['"]/g, '');
+        }
+      }
+      
+      // Create blob and download
+      const blob = new Blob([response.data], { type: response.headers['content-type'] || 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Failed to download file:", error);
+      showError(error?.response?.data?.error || "Failed to download file. Please try again.");
+    }
+  };
+
   // UPDATED: use selected datetime instead of new Date()
   const createAppt = async () => {
     const effectiveLeadId = currentLeadId || leadId;
@@ -426,26 +474,54 @@ export default function LeadDrawer({ open, onClose, leadId, mode, onSaved }) {
                       ? f.file.path.split('/').pop() || f.file.path 
                       : `File #${f.fileId}`;
                     const fileSize = f.file?.size ? Math.round(f.file.size / 1024) : 0;
+                    const isCsv = fileName.toLowerCase().endsWith('.csv') || f.file?.mime?.includes('csv');
                     return (
-                      <li key={f.id} className="bg-white border border-slate-200 p-3 rounded-lg flex items-center justify-between">
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          <svg className="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                          <span className="text-sm truncate" title={fileName}>{fileName}</span>
+                      <li key={f.id} className="bg-white border border-slate-200 p-3 rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <svg className="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <span className="text-sm truncate font-medium" title={fileName}>{fileName}</span>
+                          </div>
+                          <span className="text-xs text-slate-500 whitespace-nowrap ml-2">{fileSize} KB</span>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-xs text-slate-500 whitespace-nowrap">{fileSize} KB</span>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => downloadFile(f.id)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+                            title="Download file"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            Download
+                          </button>
+                          {isCsv && canWrite && (
+                            <button
+                              type="button"
+                              onClick={() => saveLeadToCsv(f.fileId)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
+                              title="Save lead to CSV file"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                              Save to CSV
+                            </button>
+                          )}
                           {canWrite && (
                             <button
                               type="button"
                               onClick={() => deleteFile(f.id)}
-                              className="text-red-500 hover:text-red-700 p-1 rounded transition-colors"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
                               title="Delete file"
                             >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                               </svg>
+                              Delete
                             </button>
                           )}
                         </div>
