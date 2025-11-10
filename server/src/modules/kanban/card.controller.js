@@ -141,7 +141,10 @@ const attachFile = [
       res.json(r);
     } catch (err) {
       console.error('[Kanban] Upload processing error:', err);
-      res.status(400).json({ error: err.message || 'Failed to process upload' });
+      if (err.code === 'OVER_QUOTA') {
+        return res.status(403).json({ error: err.message, code: 'OVER_QUOTA' });
+      }
+      res.status(err.status || 400).json({ error: err.message || 'Failed to process upload' });
     }
   }
 ];

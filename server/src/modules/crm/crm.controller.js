@@ -141,7 +141,7 @@ const uploadLeadFile = async (req, res, n) => { try { res.status(201).json(await
 const deleteLeadFile = async (req, res, n) => { try { await svc.deleteLeadFile(req.context, +req.params.leadId, +req.params.leadFileId); res.json({ ok: true }); } catch (e) { n(e); } };
 
 // Import
-const importCsv = async (req, res, n) => { try { await svc.importCsv(req.context, req); res.json({ ok: true }); } catch (e) { n(e); } };
+const importCsv = async (req, res, n) => { try { const result = await svc.importCsv(req.context, req); res.json(result); } catch (e) { n(e); } };
 
 module.exports = {
   listLeads,

@@ -11,10 +11,14 @@ http.defaults.baseURL = import.meta.env.VITE_API_URL;
 http.interceptors.response.use(
   (res) => res,
   (error) => {
+    // Handle storage quota and other upgrade-related errors
     if (error?.response?.status === 403 && error?.response?.data?.code) {
       const code = error.response.data.code;
       const attemptedAction = error.config?.url || 'unknown';
-      if (onUpgradeNeeded) onUpgradeNeeded({ code, attemptedAction });
+      // Trigger upgrade modal for OVER_QUOTA and other upgrade codes
+      if (code === 'OVER_QUOTA' || code === 'UPGRADE_REQUIRED' || code === 'TRIAL_EXPIRED') {
+        if (onUpgradeNeeded) onUpgradeNeeded({ code, attemptedAction });
+      }
     }
     return Promise.reject(error);
   }

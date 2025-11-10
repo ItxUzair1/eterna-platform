@@ -11,6 +11,7 @@ const { getBroker } = require('./image.ss-broker');
 
 const prisma = new PrismaClient();
 const { spacesUploadMiddleware, getSignedDownloadUrl } = require('../../utils/spaces');
+const { checkStorageLimit, incrementStorageUsage } = require('../../utils/fileHandler');
 
 const OK_FORMATS = new Set(['jpg', 'jpeg', 'png', 'bmp', 'gif', 'tiff', 'webp']);
 const MAX_FILES = 100;
@@ -72,6 +73,9 @@ exports.uploadFiles = [
       if (files.length > MAX_FILES) return res.status(400).json({ error: `Max ${MAX_FILES} files` });
       if (total > MAX_TOTAL) return res.status(400).json({ error: 'Total size exceeds 200MB' });
 
+      // Check storage limit before processing
+      await checkStorageLimit(req.user.tenantId, total);
+
       const saved = [];
       for (const f of files) {
         const row = await prisma.file.create({
@@ -84,12 +88,17 @@ exports.uploadFiles = [
             checksum: null
           }
         });
+        // Increment storage usage for each file
+        await incrementStorageUsage(req.user.tenantId, f.size);
         saved.push({ id: row.id, originalName: f.originalname });
       }
       res.json({ jobId: Number(req.params.jobId), files: saved });
     } catch (e) {
       console.error('[Image] Upload processing error:', e);
-      res.status(500).json({ error: e.message || 'Upload failed. Check Spaces configuration.' });
+      if (e.code === 'OVER_QUOTA') {
+        return res.status(403).json({ error: e.message, code: 'OVER_QUOTA' });
+      }
+      res.status(e.status || 500).json({ error: e.message || 'Upload failed. Check Spaces configuration.' });
     }
   }
 ];

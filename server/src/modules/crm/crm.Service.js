@@ -6,6 +6,10 @@ const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const csv = require("csv-parser");
 const fs = require("fs");
+const path = require("path");
+const os = require("os");
+const { s3 } = require("../../utils/spaces.js");
+const { GetObjectCommand } = require("@aws-sdk/client-s3");
 
 const DEFAULT_STATUSES = [
   { value: "New",         color: "#64748b", sortOrder: 10 },
@@ -99,7 +103,7 @@ async function updateLead(ctx, id, payload) {
 
 async function bulkDeleteLeads(ctx, ids) {
   ensureScope(ctx, "crm", "write");
-  await prisma.lead.deleteMany({ where: { id: { in: ids }, tenantId: ctx.enantId } }); // ensure tenant filter
+  await prisma.lead.deleteMany({ where: { id: { in: ids }, tenantId: ctx.tenantId } }); // ensure tenant filter
   await audit(ctx, "lead.bulkDelete", "Lead", null, { ids });
 }
 
@@ -162,7 +166,18 @@ async function uploadLeadFile(ctx, leadId, req) {
 
 async function deleteLeadFile(ctx, leadId, leadFileId) {
   ensureScope(ctx, "crm", "write");
+  const leadFile = await prisma.leadFile.findFirstOrThrow({
+    where: { id: leadFileId },
+    include: { file: true },
+  });
+  const fileSize = leadFile.file.size;
   await prisma.leadFile.delete({ where: { id: leadFileId } });
+  await prisma.file.delete({ where: { id: leadFile.file.id } });
+  
+  // Decrement storage usage
+  const { decrementStorageUsage } = require("../../utils/fileHandler.js");
+  await decrementStorageUsage(ctx.tenantId, fileSize);
+  
   await audit(ctx, "lead.file.delete", "Lead", leadId, { leadFileId });
 }
 
@@ -171,8 +186,44 @@ async function importCsv(ctx, req) {
   
   const mapping = JSON.parse(req.body.mapping || "{}");
 
-  if (!req.file?.path) {
+  // Check if file exists (either disk storage with path or S3 storage with key)
+  if (!req.file) {
     throw new Error("No CSV file uploaded");
+  }
+
+  // Determine file path: disk storage uses path, S3 storage uses key
+  let filePath = req.file.path;
+  let tempFilePath = null;
+
+  // If no path, check for S3 key
+  if (!filePath && req.file.key) {
+    // Download from S3 to temporary file
+    if (!s3) {
+      throw new Error("S3 client not initialized. Cannot process CSV from S3 storage.");
+    }
+    const SPACES_BUCKET = process.env.SPACES_BUCKET?.trim().replace(/^["']|["']$/g, '');
+    if (!SPACES_BUCKET) {
+      throw new Error("SPACES_BUCKET not configured");
+    }
+    
+    tempFilePath = path.join(os.tmpdir(), `csv-import-${Date.now()}-${Math.random().toString(36).substring(7)}.csv`);
+    const getObjectCmd = new GetObjectCommand({
+      Bucket: SPACES_BUCKET,
+      Key: req.file.key,
+    });
+    
+    const response = await s3.send(getObjectCmd);
+    const chunks = [];
+    for await (const chunk of response.Body) {
+      chunks.push(chunk);
+    }
+    const buffer = Buffer.concat(chunks);
+    fs.writeFileSync(tempFilePath, buffer);
+    filePath = tempFilePath;
+  }
+
+  if (!filePath) {
+    throw new Error("No CSV file uploaded or file path not available");
   }
 
   if (!mapping.name) {
@@ -191,7 +242,7 @@ async function importCsv(ctx, req) {
     const errors = [];
     let rowIndex = 0;
 
-    fs.createReadStream(req.file.path)
+    fs.createReadStream(filePath)
       .pipe(csv())
       .on("data", (data) => {
         rowIndex++;
@@ -232,6 +283,11 @@ async function importCsv(ctx, req) {
       })
       .on("end", async () => {
         try {
+          // Clean up temporary file if it was downloaded from S3
+          if (tempFilePath && fs.existsSync(tempFilePath)) {
+            fs.unlinkSync(tempFilePath);
+          }
+
           // Only create valid leads
           const validLeads = results.filter((lead) => lead.name);
           if (validLeads.length > 0) {
@@ -247,10 +303,20 @@ async function importCsv(ctx, req) {
             errors,
           });
         } catch (err) {
+          // Clean up temporary file on error
+          if (tempFilePath && fs.existsSync(tempFilePath)) {
+            fs.unlinkSync(tempFilePath);
+          }
           reject(err);
         }
       })
-      .on("error", reject);
+      .on("error", (err) => {
+        // Clean up temporary file on error
+        if (tempFilePath && fs.existsSync(tempFilePath)) {
+          fs.unlinkSync(tempFilePath);
+        }
+        reject(err);
+      });
   });
 }
 
