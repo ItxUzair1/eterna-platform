@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { crmApi } from "../../services/crmService";
 import { usePermission } from "../auth/usePermission";
@@ -15,6 +15,7 @@ export default function LeadDrawer({ open, onClose, leadId, mode, onSaved }) {
   const [files, setFiles] = useState([]);
   const [appointments, setAppointments] = useState([]);
   const [saving, setSaving] = useState(false);
+  const fileInputRef = useRef(null);
 
   // NEW: appointment form state + helpers
   const [apptForm, setApptForm] = useState(() => {
@@ -137,11 +138,74 @@ export default function LeadDrawer({ open, onClose, leadId, mode, onSaved }) {
     }
     try {
       await crmApi.uploadFile(effectiveLeadId, file);
+      // Refresh files list after upload
       const filesRes = await crmApi.listFiles(effectiveLeadId);
       setFiles(filesRes.data?.items || filesRes.data || []);
     } catch (error) {
       console.error("Failed to upload file:", error);
       showError(error?.response?.data?.error || "Failed to upload file. Please try again.");
+    }
+  };
+
+  const deleteFile = async (leadFileId) => {
+    const effectiveLeadId = currentLeadId || leadId;
+    if (!effectiveLeadId) return;
+    try {
+      await crmApi.deleteFile(effectiveLeadId, leadFileId);
+      // Refresh files list after deletion
+      const filesRes = await crmApi.listFiles(effectiveLeadId);
+      setFiles(filesRes.data?.items || filesRes.data || []);
+    } catch (error) {
+      console.error("Failed to delete file:", error);
+      showError(error?.response?.data?.error || "Failed to delete file. Please try again.");
+    }
+  };
+
+  const saveLeadToCsv = async (fileId) => {
+    const effectiveLeadId = currentLeadId || leadId;
+    if (!effectiveLeadId) {
+      showError("Please save the lead first");
+      return;
+    }
+    try {
+      await crmApi.exportLeadToCsv(effectiveLeadId, fileId);
+      // Refresh files list to get updated file size
+      const filesRes = await crmApi.listFiles(effectiveLeadId);
+      setFiles(filesRes.data?.items || filesRes.data || []);
+    } catch (error) {
+      console.error("Failed to save lead to CSV:", error);
+      showError(error?.response?.data?.error || "Failed to save lead to CSV. Please try again.");
+    }
+  };
+
+  const downloadFile = async (leadFileId) => {
+    const effectiveLeadId = currentLeadId || leadId;
+    if (!effectiveLeadId) return;
+    try {
+      const response = await crmApi.downloadFile(effectiveLeadId, leadFileId);
+      // Get filename from Content-Disposition header or use default
+      const contentDisposition = response.headers['content-disposition'] || response.headers['Content-Disposition'];
+      let filename = 'download.csv';
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/i);
+        if (filenameMatch) {
+          filename = filenameMatch[1].replace(/['"]/g, '');
+        }
+      }
+      
+      // Create blob and download
+      const blob = new Blob([response.data], { type: response.headers['content-type'] || 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Failed to download file:", error);
+      showError(error?.response?.data?.error || "Failed to download file. Please try again.");
     }
   };
 
@@ -190,19 +254,33 @@ export default function LeadDrawer({ open, onClose, leadId, mode, onSaved }) {
   };
 
   return (
-    <div className={`fixed inset-y-0 right-0 w-full sm:w-[480px] bg-white text-slate-900 border-l border-slate-200 shadow-xl transform transition-transform duration-300 z-50 ${open ? "translate-x-0" : "translate-x-full"}`}>
-      <div className="flex items-center justify-between p-4 border-b border-slate-200">
-        <h2 className="text-lg font-semibold">{isEdit ? "Edit Lead" : "New Lead"}</h2>
-        <button onClick={onClose} className="p-2 rounded hover:bg-slate-100">✕</button>
+    <div className={`fixed inset-y-0 right-0 w-full sm:w-[480px] bg-white text-slate-900 border-l border-slate-200 shadow-xl transform transition-transform duration-300 z-50 flex flex-col ${open ? "translate-x-0" : "translate-x-full"}`}>
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50">
+        <h2 className="text-lg font-semibold text-slate-900">{isEdit ? "Edit Lead" : "New Lead"}</h2>
+        <button 
+          onClick={onClose} 
+          className="p-2 rounded-lg hover:bg-slate-200 transition-colors text-slate-600 hover:text-slate-900"
+          aria-label="Close"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
       </div>
 
-      <div className="p-4">
-        <div className="flex gap-2 mb-4">
+      {/* Content Area - Scrollable */}
+      <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex gap-2 mb-6 border-b border-slate-200 pb-2">
           {["details", "appointments", "files"].map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`px-3 py-2 rounded-full text-sm ${tab === t ? "bg-indigo-600 text-white shadow-sm" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                tab === t 
+                  ? "bg-indigo-600 text-white shadow-md" 
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900"
+              }`}
             >
               {t[0].toUpperCase() + t.slice(1)}
             </button>
@@ -260,9 +338,12 @@ export default function LeadDrawer({ open, onClose, leadId, mode, onSaved }) {
             {(currentLeadId || leadId) && data.email && (
               <button
                 onClick={composeEmailToLead}
-                className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow transition flex items-center justify-center gap-2 font-semibold"
+                className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white px-4 py-3 rounded-lg shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 font-semibold"
               >
-                ✉️ Compose Email to {data.name}
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                Compose Email to {data.name}
               </button>
             )}
           </div>
@@ -326,9 +407,12 @@ export default function LeadDrawer({ open, onClose, leadId, mode, onSaved }) {
               <div className="flex justify-end">
                 <button
                   onClick={createAppt}
-                  className="bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white px-3 py-2 rounded-lg shadow-sm"
+                  className="bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white px-5 py-2.5 rounded-lg shadow-md hover:shadow-lg transition-all font-medium flex items-center gap-2"
                 >
-                  Add appointment
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Add Appointment
                 </button>
               </div>
             </>
@@ -355,44 +439,96 @@ export default function LeadDrawer({ open, onClose, leadId, mode, onSaved }) {
             {!(currentLeadId || leadId) && <div className="text-slate-500 text-sm">Save the lead before uploading files.</div>}
             {(currentLeadId || leadId) && canWrite && (
               <>
-                <label 
-                  className="inline-flex items-center gap-2 bg-white border border-slate-200 hover:border-slate-300 px-3 py-2 rounded-lg cursor-pointer shadow-sm hover:shadow"
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white px-4 py-2.5 rounded-lg cursor-pointer shadow-md hover:shadow-lg transition-all font-medium"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    // Manually trigger file input click
-                    const fileInput = e.currentTarget.querySelector('input[type="file"]');
-                    if (fileInput) {
-                      fileInput.click();
+                    // Trigger file input click using ref
+                    if (fileInputRef.current) {
+                      fileInputRef.current.click();
                     }
                   }}
                 >
-                  <input 
-                    type="file" 
-                    className="hidden" 
-                    onChange={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      if (e.target.files?.[0]) {
-                        uploadFile(e.target.files[0]);
-                      }
-                      e.target.value = ''; // Reset after handling
-                    }}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                    }}
-                  />
-                  Upload file
-                </label>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  Upload File
+                </button>
+                <input 
+                  ref={fileInputRef}
+                  type="file" 
+                  className="hidden" 
+                  onChange={(e) => {
+                    if (e.target.files?.[0]) {
+                      uploadFile(e.target.files[0]);
+                    }
+                    // Reset input after handling
+                    e.target.value = '';
+                  }}
+                />
                 <ul className="space-y-2">
-                  {files.map((f) => (
-                    <li key={f.id} className="bg-white border border-slate-200 p-3 rounded-lg flex items-center justify-between">
-                      <span className="text-sm">{f.file?.path || `File #${f.fileId}`}</span>
-                      <span className="text-xs text-slate-500">{Math.round((f.file?.size || 0) / 1024)} KB</span>
-                    </li>
-                  ))}
-                  {!files.length && <div className="text-slate-500">No files</div>}
+                  {files.map((f) => {
+                    const fileName = f.file?.path 
+                      ? f.file.path.split('/').pop() || f.file.path 
+                      : `File #${f.fileId}`;
+                    const fileSize = f.file?.size ? Math.round(f.file.size / 1024) : 0;
+                    const isCsv = fileName.toLowerCase().endsWith('.csv') || f.file?.mime?.includes('csv');
+                    return (
+                      <li key={f.id} className="bg-white border border-slate-200 p-3 rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <svg className="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <span className="text-sm truncate font-medium" title={fileName}>{fileName}</span>
+                          </div>
+                          <span className="text-xs text-slate-500 whitespace-nowrap ml-2">{fileSize} KB</span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => downloadFile(f.id)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+                            title="Download file"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            Download
+                          </button>
+                          {isCsv && canWrite && (
+                            <button
+                              type="button"
+                              onClick={() => saveLeadToCsv(f.fileId)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
+                              title="Save lead to CSV file"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                              Save to CSV
+                            </button>
+                          )}
+                          {canWrite && (
+                            <button
+                              type="button"
+                              onClick={() => deleteFile(f.id)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                              title="Delete file"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                              Delete
+                            </button>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                  {!files.length && <div className="text-slate-500 text-sm">No files uploaded yet</div>}
                 </ul>
               </>
             )}
@@ -400,17 +536,40 @@ export default function LeadDrawer({ open, onClose, leadId, mode, onSaved }) {
         )}
       </div>
 
-      <div className="p-4 border-t border-slate-200 flex gap-2 justify-end bg-white rounded-b-lg">
-        <button onClick={onClose} className="px-3 py-2 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200">Close</button>
-        {canWrite && (mode === "create" || mode === "edit") && (
-          <button
-            onClick={save}
-            disabled={!data.name || saving}
-            className="px-3 py-2 rounded-lg text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 disabled:opacity-50 shadow-sm hover:shadow"
+      {/* Footer - Sticky with prominent buttons */}
+      <div className="border-t border-slate-200 bg-white p-4 shadow-lg">
+        <div className="flex gap-3 justify-end">
+          <button 
+            onClick={onClose} 
+            className="px-4 py-2.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 font-medium transition-colors shadow-sm"
           >
-            {saving ? "Saving…" : "Save"}
+            Close
           </button>
-        )}
+          {canWrite && (mode === "create" || mode === "edit") && (
+            <button
+              onClick={save}
+              disabled={!data.name?.trim() || saving}
+              className="px-6 py-2.5 rounded-lg text-white font-semibold bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+            >
+              {saving ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Saving…
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Save
+                </>
+              )}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

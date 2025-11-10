@@ -180,12 +180,19 @@ const uploadPhoto = async (req, res) => {
       console.error('Error generating photo URL:', err);
     }
     
+    // Check storage limit and track usage for profile photo
+    const { checkStorageLimit, incrementStorageUsage } = require('../../utils/fileHandler');
+    await checkStorageLimit(req.context.tenantId, file.size);
+
     // Update user profile with photo key
     const user = await prisma.user.update({
       where: { id: req.context.userId },
       data: { photo: photoKey },
       select: { id: true, email: true, username: true, firstName: true, lastName: true, jobTitle: true, photo: true, emailVerifiedAt: true }
     });
+
+    // Increment storage usage for profile photo
+    await incrementStorageUsage(req.context.tenantId, file.size);
     
     // Add photoUrl to response
     user.photoUrl = photoUrl;
@@ -200,7 +207,10 @@ const uploadPhoto = async (req, res) => {
     res.json({ user });
   } catch (err) {
     console.error('Upload photo error:', err);
-    res.status(400).json({ error: err.message || 'Failed to upload photo' });
+    if (err.code === 'OVER_QUOTA') {
+      return res.status(403).json({ error: err.message, code: 'OVER_QUOTA' });
+    }
+    res.status(err.status || 400).json({ error: err.message || 'Failed to upload photo' });
   }
 };
 
