@@ -4,13 +4,23 @@ import { useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { getMe } from "../services/authService";
 import { useNotifications } from '../context/NotificationContext.jsx';
+import http from "../services/api";
+import useBillingStore from "../store/billingStore";
 
 export default function NavBar({ onToggleSidebar }) {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [openNotifications, setOpenNotifications] = useState(false);
   const dropdownRef = useRef(null);
+  const storageAlertedRef = useRef(false);
+  const [storageUsage, setStorageUsage] = useState(null);
+  const openUpgradeModal = useBillingStore((s) => s.openUpgradeModal);
+  const setEntitlements = useBillingStore((s) => s.setEntitlements);
   const { notifications, unreadCount, markAllRead, markRead, refresh } = useNotifications();
+  const usedStorage = Number(storageUsage?.usedGB || 0);
+  const entitledStorage = Number(storageUsage?.entitledGB || 0);
+  const storagePercent = entitledStorage > 0 ? Math.min(100, (usedStorage / entitledStorage) * 100) : 0;
+  const storageFull = entitledStorage > 0 && usedStorage >= entitledStorage;
   useEffect(() => {
     function handleClickOutside(event) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -34,6 +44,41 @@ export default function NavBar({ onToggleSidebar }) {
     })();
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+    const fetchUsage = async () => {
+      try {
+        const res = await http.get('/me/billing');
+        if (!mounted) return;
+        const storage = res.data?.storage || null;
+        setStorageUsage(storage);
+        if (typeof setEntitlements === 'function') {
+          setEntitlements(res.data);
+        }
+        if (
+          storage &&
+          Number(storage.entitledGB || 0) > 0 &&
+          Number(storage.usedGB || 0) >= Number(storage.entitledGB || 0) &&
+          !storageAlertedRef.current
+        ) {
+          storageAlertedRef.current = true;
+          openUpgradeModal({
+            code: 'STORAGE_LIMIT_REACHED',
+            attemptedAction: 'storage_cap',
+          });
+        }
+      } catch (err) {
+        console.error('Failed to load storage usage:', err);
+      }
+    };
+    fetchUsage();
+    const interval = setInterval(fetchUsage, 60000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [openUpgradeModal, setEntitlements]);
+
   return (
     <nav
       className="bg-white/90 backdrop-blur shadow-sm px-4 sm:px-6 h-14 flex items-center justify-between sticky top-0 z-30"
@@ -53,6 +98,38 @@ export default function NavBar({ onToggleSidebar }) {
 
       {/* Right: Notification + Avatar */}
       <div className="flex items-center gap-3 sm:gap-5">
+        {storageUsage && entitledStorage > 0 && (
+          <div className="hidden md:flex flex-col items-start gap-1 min-w-[140px]">
+            <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+              <span>Storage</span>
+              {storageFull && (
+                <span className="text-rose-500">Full</span>
+              )}
+            </div>
+            <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full ${
+                  storagePercent >= 95 ? 'bg-rose-500' : storagePercent >= 80 ? 'bg-amber-500' : 'bg-indigo-500'
+                }`}
+                style={{
+                  width: `${storagePercent}%`,
+                }}
+              />
+            </div>
+            <div className="flex items-center gap-2 text-[11px] text-slate-600">
+              {Math.round(usedStorage * 10) / 10} / {entitledStorage} GB
+              {storageFull && (
+                <button
+                  type="button"
+                  onClick={() => openUpgradeModal({ code: 'STORAGE_LIMIT_REACHED', attemptedAction: 'storage_badge_cta' })}
+                  className="text-rose-500 text-[10px] font-semibold hover:underline"
+                >
+                  Upgrade
+                </button>
+              )}
+            </div>
+          </div>
+        )}
         <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => {

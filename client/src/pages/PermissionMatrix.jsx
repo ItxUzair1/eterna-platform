@@ -126,8 +126,17 @@ export default function PermissionsMatrix() {
           </select>
           {selectedUser && (
             <div className="mt-4 flex items-center gap-3">
-              {selectedUser.photo ? (
-                <img src={selectedUser.photo} alt="" className="w-12 h-12 rounded-full object-cover" />
+              {selectedUser.photoUrl || selectedUser.photo ? (
+                <img
+                  src={selectedUser.photoUrl || selectedUser.photo}
+                  alt=""
+                  className="w-12 h-12 rounded-full object-cover"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    const fallbackName = `${selectedUser.firstName || ''} ${selectedUser.lastName || ''}`.trim() || selectedUser.username || 'User';
+                    e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(fallbackName)}&background=indigo&color=fff&size=128`;
+                  }}
+                />
               ) : (
                 <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white font-semibold">
                   {(selectedUser.firstName?.[0] || selectedUser.username?.[0] || 'U').toUpperCase()}

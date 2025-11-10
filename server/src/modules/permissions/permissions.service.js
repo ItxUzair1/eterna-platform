@@ -1,6 +1,7 @@
 const prisma = require('../../config/db');
 const { audit } = require('../../utils/audit');
 const { getEntitlements } = require('../../entitlements/middleware');
+const { getSignedDownloadUrl } = require('../../utils/spaces');
 
 const APPS = ['crm','kanban','email','money','billing','todos','admin','files','notifications','image'];
 const SCOPES = ['read','write','manage','convert'];
@@ -235,7 +236,18 @@ async function listMembers({ tenantId }) {
     },
     orderBy: { createdAt: 'desc' }
   });
-  return { users };
+  const enriched = await Promise.all(users.map(async (user) => {
+    if (user.photo) {
+      try {
+        user.photoUrl = await getSignedDownloadUrl(user.photo, 3600);
+      } catch (err) {
+        console.error('[permissions] Failed to sign user photo URL', { userId: user.id, err: err.message });
+        user.photoUrl = null;
+      }
+    }
+    return user;
+  }));
+  return { users: enriched };
 }
 
 async function listMinimalUsers({ tenantId }) {
