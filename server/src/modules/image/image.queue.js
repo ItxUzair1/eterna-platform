@@ -123,6 +123,10 @@ const worker = new Worker(
           acl: 'private'
         });
 
+        // Check storage limit before creating converted file
+        const { checkStorageLimit, incrementStorageUsage } = require('../../utils/fileHandler');
+        await checkStorageLimit(jobRow.tenantId, outputBuffer.length);
+
         // Create File record with Spaces key
         const outFile = await prisma.file.create({
           data: {
@@ -134,6 +138,9 @@ const worker = new Worker(
             checksum: null
           }
         });
+
+        // Increment storage usage for converted file
+        await incrementStorageUsage(jobRow.tenantId, outputBuffer.length);
 
         await prisma.convertJobItem.update({
           where: { id: item.id },
@@ -163,7 +170,7 @@ const worker = new Worker(
 
     // Clean up temp directory
     try {
-      await fs.rmdir(tempDir, { recursive: true }).catch(() => {});
+      await fs.rm(tempDir, { recursive: true }).catch(() => {});
     } catch {}
 
     const anyDone = await prisma.convertJobItem.count({ where: { jobId, status: 'DONE' } });

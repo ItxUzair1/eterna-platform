@@ -134,7 +134,12 @@ export default function UpgradeModal() {
         This feature requires upgrading your plan. Please upgrade to access this app.
       </p>
     )}
-    {code && code !== 'UPGRADE_REQUIRED' && (
+    {code === 'OVER_QUOTA' && (
+      <p className="mt-3 rounded-xl border border-red-200 bg-red-50 text-red-800 px-3 py-2">
+        <strong>Storage limit reached!</strong> You've used all your available storage. Please upgrade your plan or add storage to continue uploading files.
+      </p>
+    )}
+    {code && code !== 'UPGRADE_REQUIRED' && code !== 'OVER_QUOTA' && (
       <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 text-amber-800 px-3 py-2">
         Reason: {code}
       </p>

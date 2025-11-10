@@ -208,8 +208,13 @@ async function deleteTransactionFile(ctx, transactionId, transactionFileId) {
     throw new Error("Unauthorized");
   }
 
+  const fileSize = tf.file.size;
   await prisma.transactionFile.delete({ where: { id: transactionFileId } });
   await prisma.file.delete({ where: { id: tf.fileId } });
+  
+  // Decrement storage usage
+  const { decrementStorageUsage } = require("../../utils/fileHandler.js");
+  await decrementStorageUsage(ctx.tenantId, fileSize);
   
   await audit(ctx, "transaction.deleteFile", "Transaction", transactionId, { fileId: tf.fileId });
   return { ok: true };

@@ -6,6 +6,10 @@ const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const csv = require("csv-parser");
 const fs = require("fs");
+const path = require("path");
+const os = require("os");
+const { s3 } = require("../../utils/spaces.js");
+const { GetObjectCommand } = require("@aws-sdk/client-s3");
 
 const DEFAULT_STATUSES = [
   { value: "New",         color: "#64748b", sortOrder: 10 },
@@ -99,7 +103,7 @@ async function updateLead(ctx, id, payload) {
 
 async function bulkDeleteLeads(ctx, ids) {
   ensureScope(ctx, "crm", "write");
-  await prisma.lead.deleteMany({ where: { id: { in: ids }, tenantId: ctx.enantId } }); // ensure tenant filter
+  await prisma.lead.deleteMany({ where: { id: { in: ids }, tenantId: ctx.tenantId } }); // ensure tenant filter
   await audit(ctx, "lead.bulkDelete", "Lead", null, { ids });
 }
 
@@ -162,8 +166,182 @@ async function uploadLeadFile(ctx, leadId, req) {
 
 async function deleteLeadFile(ctx, leadId, leadFileId) {
   ensureScope(ctx, "crm", "write");
+  const leadFile = await prisma.leadFile.findFirstOrThrow({
+    where: { id: leadFileId },
+    include: { file: true },
+  });
+  const fileSize = leadFile.file.size;
   await prisma.leadFile.delete({ where: { id: leadFileId } });
+  await prisma.file.delete({ where: { id: leadFile.file.id } });
+  
+  // Decrement storage usage
+  const { decrementStorageUsage } = require("../../utils/fileHandler.js");
+  await decrementStorageUsage(ctx.tenantId, fileSize);
+  
   await audit(ctx, "lead.file.delete", "Lead", leadId, { leadFileId });
+}
+
+async function exportLeadToCsv(ctx, leadId, fileId) {
+  ensureScope(ctx, "crm", "write");
+  
+  // Get the lead data
+  const lead = await prisma.lead.findFirstOrThrow({
+    where: { id: leadId, tenantId: ctx.tenantId },
+    include: { 
+      status: { select: { value: true } },
+      owner: { select: { username: true, email: true } }
+    },
+  });
+
+  // Verify the file is linked to this lead
+  const leadFile = await prisma.leadFile.findFirstOrThrow({
+    where: { leadId, fileId, tenantId: ctx.tenantId },
+    include: { file: true },
+  });
+
+  const file = leadFile.file;
+
+  // Check if file is CSV
+  if (!file.mime.includes('csv') && !file.path.endsWith('.csv')) {
+    throw new Error("File must be a CSV file");
+  }
+
+  // Download existing CSV from S3
+  const SPACES_BUCKET = process.env.SPACES_BUCKET?.trim().replace(/^["']|["']$/g, '');
+  if (!SPACES_BUCKET) {
+    throw new Error("SPACES_BUCKET not configured");
+  }
+
+  const getObjectCmd = new GetObjectCommand({
+    Bucket: SPACES_BUCKET,
+    Key: file.path,
+  });
+  
+  const response = await s3.send(getObjectCmd);
+  const chunks = [];
+  for await (const chunk of response.Body) {
+    chunks.push(chunk);
+  }
+  const existingCsv = Buffer.concat(chunks).toString('utf-8');
+
+  // Parse existing CSV to check if headers exist
+  const lines = existingCsv.split('\n').filter(line => line.trim());
+  let csvContent = existingCsv;
+  
+  // Prepare lead data row
+  const leadRow = [
+    lead.name || '',
+    lead.company || '',
+    lead.email || '',
+    lead.phone || '',
+    lead.status?.value || '',
+    lead.owner?.username || lead.owner?.email || '',
+    lead.tags || '',
+    new Date(lead.createdAt).toISOString(),
+    new Date(lead.updatedAt).toISOString(),
+  ];
+  const leadRowCsv = leadRow.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',');
+  
+  // If CSV has headers, append data row; otherwise create new CSV with headers
+  if (lines.length === 0 || !lines[0].toLowerCase().includes('name')) {
+    // Create new CSV with headers
+    const headers = ['Name', 'Company', 'Email', 'Phone', 'Status', 'Owner', 'Tags', 'Created', 'Updated'];
+    csvContent = [
+      headers.map(h => `"${h}"`).join(','),
+      leadRowCsv
+    ].join('\n');
+  } else {
+    // Check if lead already exists in CSV (by name and email combination)
+    const leadExists = lines.some(line => {
+      const lowerLine = line.toLowerCase();
+      const nameMatch = lead.name && lowerLine.includes(`"${lead.name.toLowerCase()}"`);
+      const emailMatch = lead.email && lowerLine.includes(`"${lead.email.toLowerCase()}"`);
+      return nameMatch || (nameMatch && emailMatch);
+    });
+    
+    if (!leadExists) {
+      // Append to existing CSV
+      csvContent = existingCsv.trim() + '\n' + leadRowCsv;
+    } else {
+      // Update existing row if found
+      const updatedLines = lines.map(line => {
+        const lowerLine = line.toLowerCase();
+        const nameMatch = lead.name && lowerLine.includes(`"${lead.name.toLowerCase()}"`);
+        const emailMatch = lead.email && lowerLine.includes(`"${lead.email.toLowerCase()}"`);
+        if (nameMatch || (nameMatch && emailMatch)) {
+          return leadRowCsv;
+        }
+        return line;
+      });
+      csvContent = updatedLines.join('\n');
+    }
+  }
+
+  // Upload updated CSV back to S3
+  const { PutObjectCommand } = require("@aws-sdk/client-s3");
+  const putObjectCmd = new PutObjectCommand({
+    Bucket: SPACES_BUCKET,
+    Key: file.path,
+    Body: Buffer.from(csvContent, 'utf-8'),
+    ContentType: 'text/csv',
+    ACL: 'private'
+  });
+  
+  await s3.send(putObjectCmd);
+
+  // Update file size in database
+  const newSize = Buffer.byteLength(csvContent, 'utf-8');
+  const sizeDiff = newSize - file.size;
+  
+  await prisma.file.update({
+    where: { id: fileId },
+    data: { size: newSize },
+  });
+
+  // Update storage usage
+  if (sizeDiff !== 0) {
+    const { incrementStorageUsage, decrementStorageUsage } = require("../../utils/fileHandler.js");
+    if (sizeDiff > 0) {
+      await incrementStorageUsage(ctx.tenantId, sizeDiff);
+    } else {
+      await decrementStorageUsage(ctx.tenantId, Math.abs(sizeDiff));
+    }
+  }
+
+  await audit(ctx, "lead.exportToCsv", "Lead", leadId, { fileId });
+  return { success: true, message: "Lead saved to CSV file" };
+}
+
+async function downloadLeadFile(ctx, leadId, leadFileId) {
+  ensureScope(ctx, "crm", "read");
+  
+  const leadFile = await prisma.leadFile.findFirstOrThrow({
+    where: { id: leadFileId, leadId, tenantId: ctx.tenantId },
+    include: { file: true },
+  });
+
+  const SPACES_BUCKET = process.env.SPACES_BUCKET?.trim().replace(/^["']|["']$/g, '');
+  if (!SPACES_BUCKET) {
+    throw new Error("SPACES_BUCKET not configured");
+  }
+
+  const getObjectCmd = new GetObjectCommand({
+    Bucket: SPACES_BUCKET,
+    Key: leadFile.file.path,
+  });
+  
+  const response = await s3.send(getObjectCmd);
+  const chunks = [];
+  for await (const chunk of response.Body) {
+    chunks.push(chunk);
+  }
+  const fileBuffer = Buffer.concat(chunks);
+
+  return {
+    buffer: fileBuffer,
+    filename: leadFile.file.path.split('/').pop() || `file-${leadFileId}.csv`,
+    mimeType: leadFile.file.mime || 'application/octet-stream',
+  };
 }
 
 async function importCsv(ctx, req) {
@@ -171,8 +349,44 @@ async function importCsv(ctx, req) {
   
   const mapping = JSON.parse(req.body.mapping || "{}");
 
-  if (!req.file?.path) {
+  // Check if file exists (either disk storage with path or S3 storage with key)
+  if (!req.file) {
     throw new Error("No CSV file uploaded");
+  }
+
+  // Determine file path: disk storage uses path, S3 storage uses key
+  let filePath = req.file.path;
+  let tempFilePath = null;
+
+  // If no path, check for S3 key
+  if (!filePath && req.file.key) {
+    // Download from S3 to temporary file
+    if (!s3) {
+      throw new Error("S3 client not initialized. Cannot process CSV from S3 storage.");
+    }
+    const SPACES_BUCKET = process.env.SPACES_BUCKET?.trim().replace(/^["']|["']$/g, '');
+    if (!SPACES_BUCKET) {
+      throw new Error("SPACES_BUCKET not configured");
+    }
+    
+    tempFilePath = path.join(os.tmpdir(), `csv-import-${Date.now()}-${Math.random().toString(36).substring(7)}.csv`);
+    const getObjectCmd = new GetObjectCommand({
+      Bucket: SPACES_BUCKET,
+      Key: req.file.key,
+    });
+    
+    const response = await s3.send(getObjectCmd);
+    const chunks = [];
+    for await (const chunk of response.Body) {
+      chunks.push(chunk);
+    }
+    const buffer = Buffer.concat(chunks);
+    fs.writeFileSync(tempFilePath, buffer);
+    filePath = tempFilePath;
+  }
+
+  if (!filePath) {
+    throw new Error("No CSV file uploaded or file path not available");
   }
 
   if (!mapping.name) {
@@ -191,7 +405,7 @@ async function importCsv(ctx, req) {
     const errors = [];
     let rowIndex = 0;
 
-    fs.createReadStream(req.file.path)
+    fs.createReadStream(filePath)
       .pipe(csv())
       .on("data", (data) => {
         rowIndex++;
@@ -232,6 +446,11 @@ async function importCsv(ctx, req) {
       })
       .on("end", async () => {
         try {
+          // Clean up temporary file if it was downloaded from S3
+          if (tempFilePath && fs.existsSync(tempFilePath)) {
+            fs.unlinkSync(tempFilePath);
+          }
+
           // Only create valid leads
           const validLeads = results.filter((lead) => lead.name);
           if (validLeads.length > 0) {
@@ -247,10 +466,20 @@ async function importCsv(ctx, req) {
             errors,
           });
         } catch (err) {
+          // Clean up temporary file on error
+          if (tempFilePath && fs.existsSync(tempFilePath)) {
+            fs.unlinkSync(tempFilePath);
+          }
           reject(err);
         }
       })
-      .on("error", reject);
+      .on("error", (err) => {
+        // Clean up temporary file on error
+        if (tempFilePath && fs.existsSync(tempFilePath)) {
+          fs.unlinkSync(tempFilePath);
+        }
+        reject(err);
+      });
   });
 }
 
@@ -303,4 +532,6 @@ module.exports = {
   uploadLeadFile,
   deleteLeadFile,
   importCsv,
+  exportLeadToCsv,
+  downloadLeadFile,
 };

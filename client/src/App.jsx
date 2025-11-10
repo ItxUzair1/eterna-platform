@@ -27,6 +27,7 @@ import Audit from "./pages/Audit";
 import Billing from "./pages/Billing";
 import BillingSuccess from "./pages/BillingSuccess";
 import BillingCancel from "./pages/BillingCancel";
+import { BrowserRouter } from 'react-router-dom';
 
 export default function App() {
   return (

@@ -1,4 +1,5 @@
 const prisma = require('../../config/db');
+const { checkStorageLimit, incrementStorageUsage } = require('../../utils/fileHandler');
 
 async function createCard({ boardId, columnId, title, userId, parentCardId = null }) {
   const max = await prisma.card.aggregate({
@@ -82,12 +83,19 @@ async function listComments(cardId) {
 }
 
 async function attachFile({ tenantId, userId, cardId, path, mime, size }) {
+  // Check storage limit before creating file record
+  await checkStorageLimit(tenantId, size);
+
   const file = await prisma.file.create({
     data: { tenantId, ownerId: userId, path, mime, size }
   });
   await prisma.cardFile.create({
     data: { cardId, fileId: file.id }
   });
+
+  // Increment storage usage
+  await incrementStorageUsage(tenantId, size);
+
   return { fileId: file.id };
 }
 

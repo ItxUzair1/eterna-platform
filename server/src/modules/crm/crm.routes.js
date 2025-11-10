@@ -34,6 +34,8 @@ r.post("/leads/:leadId/files", (req, res, next) => {
   });
 }, ctrl.uploadLeadFile);
 r.delete("/leads/:leadId/files/:leadFileId", ctrl.deleteLeadFile);
+r.post("/leads/:leadId/files/:fileId/export", ctrl.exportLeadToCsv);
+r.get("/leads/:leadId/files/:leadFileId/download", ctrl.downloadLeadFile);
 
 // Statuses
 r.get("/statuses", ctrl.listStatuses);

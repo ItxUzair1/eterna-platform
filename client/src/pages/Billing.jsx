@@ -44,8 +44,10 @@ export default function Billing() {
   const isTestMode = window.location.hostname === 'localhost' || import.meta.env.DEV;
 
   // Calculate usage percentages
-  const seatsPercentage = data ? (data.seats.used / data.seats.entitled) * 100 : 0;
-  const storagePercentage = data ? ((data.storage.usedGB || 0) / data.storage.entitledGB) * 100 : 0;
+  const seatsPercentage = data ? Math.min((data.seats.used / data.seats.entitled) * 100, 100) : 0;
+  const storagePercentage = data ? Math.min(((data.storage.usedGB || 0) / data.storage.entitledGB) * 100, 100) : 0;
+  const storageRemaining = data ? Math.max(0, data.storage.entitledGB - (data.storage.usedGB || 0)) : 0;
+  const isStorageFull = data && (data.storage.usedGB || 0) >= data.storage.entitledGB;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-800 px-4 py-8">
@@ -287,18 +289,28 @@ export default function Billing() {
                         </svg>
                         <span className="text-white font-medium">Storage</span>
                       </div>
-                      <span className="text-slate-300 text-sm font-semibold">
+                      <span className={`text-sm font-semibold ${isStorageFull ? 'text-red-400' : storagePercentage > 80 ? 'text-amber-300' : 'text-slate-300'}`}>
                         {Math.round((data.storage.usedGB || 0) * 10) / 10} GB / {data.storage.entitledGB} GB
                       </span>
                     </div>
-                    <div className="w-full bg-slate-800/60 rounded-full h-2.5 overflow-hidden">
+                    <div className="w-full bg-slate-800/60 rounded-full h-2.5 overflow-hidden relative">
                       <div 
-                        className="bg-gradient-to-r from-cyan-500 to-blue-500 h-full rounded-full transition-all duration-500" 
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          isStorageFull 
+                            ? 'bg-gradient-to-r from-red-500 to-red-600' 
+                            : storagePercentage > 80 
+                            ? 'bg-gradient-to-r from-amber-500 to-orange-500' 
+                            : 'bg-gradient-to-r from-cyan-500 to-blue-500'
+                        }`}
                         style={{ width: `${storagePercentage}%` }}
                       ></div>
                     </div>
-                    <p className="text-slate-400 text-xs mt-2">
-                      {Math.round((data.storage.entitledGB - (data.storage.usedGB || 0)) * 10) / 10} GB remaining
+                    <p className={`text-xs mt-2 ${isStorageFull ? 'text-red-400' : storagePercentage > 80 ? 'text-amber-300' : 'text-slate-400'}`}>
+                      {isStorageFull ? (
+                        <span className="font-semibold">Storage limit reached - Upgrade to add more storage</span>
+                      ) : (
+                        <span>{Math.round(storageRemaining * 10) / 10} GB remaining</span>
+                      )}
                     </p>
                   </div>
 

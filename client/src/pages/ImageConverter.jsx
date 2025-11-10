@@ -23,6 +23,19 @@ export default function ImageConverter() {
   const [events, setEvents] = useState([]);
   const fileInputRef = useRef(null);
 
+  // ADD THIS: Component mount/unmount tracking
+  useEffect(() => {
+    console.log('🟢 ImageConverter MOUNTED');
+    return () => {
+      console.log('🔴 ImageConverter UNMOUNTING');
+    };
+  }, []);
+
+  // ADD THIS: Track files state changes
+  useEffect(() => {
+    console.log('📁 Files state changed:', files.length, 'files');
+  }, [files]);
+
   const totalBytes = useMemo(
     () => files.reduce((s, f) => s + f.size, 0),
     [files]
@@ -47,6 +60,7 @@ export default function ImageConverter() {
   }, []);
 
   const onDrop = (e) => {
+    console.log('🎯 onDrop called');
     e.preventDefault();
     const list = Array.from(e.dataTransfer.files || []);
     if (!list.length) return;
@@ -54,15 +68,44 @@ export default function ImageConverter() {
   };
 
   const onSelect = (e) => {
-    const list = Array.from(e.target.files || []);
-    if (!list.length) return;
-    setFiles((prev) => [...prev, ...list]);
-    e.target.value = ""; // reset input
+    e.stopPropagation();
+    console.log('🚀 onSelect CALLED!', e);
+    console.log('🚀 Event type:', e.type);
+    console.log('🚀 Target:', e.target);
+    console.log('🚀 Files:', e.target.files);
+    
+    try {
+      const list = Array.from(e.target.files || []);
+      console.log('🚀 Files array:', list);
+      
+      if (!list.length) {
+        console.log('⚠️ No files in list');
+        return;
+      }
+      
+      console.log('✅ Setting files state...');
+      setFiles((prev) => {
+        const newFiles = [...prev, ...list];
+        console.log('✅ New files state:', newFiles);
+        return newFiles;
+      });
+      
+      e.target.value = "";
+      console.log('✅ Input value reset');
+    } catch (error) {
+      console.error('❌ Error in onSelect:', error);
+    }
   };
 
-  const handleChooseFiles = () => {
+  const handleChooseFiles = (e) => {
+    e.stopPropagation();
+    console.log('🖱️ Choose Files button clicked');
+    console.log('🖱️ File input ref:', fileInputRef.current);
+    
     if (fileInputRef.current) {
+      console.log('🖱️ Triggering file input click...');
       fileInputRef.current.click();
+      console.log('🖱️ Click triggered');
     }
   };
 
@@ -139,6 +182,9 @@ export default function ImageConverter() {
 
   const bytesMB = (totalBytes / 1024 / 1024).toFixed(1);
 
+  // ADD THIS: Log when component renders
+  console.log('🔄 ImageConverter rendering, files:', files.length);
+
   return (
     <PageContainer>
       <PageHeader
@@ -212,6 +258,9 @@ export default function ImageConverter() {
             onChange={onSelect}
             className="hidden"
             id="image-converter-file-input"
+            onClick={(e) => {console.log('📌 Input clicked', e); e.stopPropagation()}}
+            onFocus={() => console.log('📌 Input focused')}
+            onBlur={() => console.log('📌 Input blurred')}
           />
           <button
             type="button"
