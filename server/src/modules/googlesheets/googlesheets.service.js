@@ -136,9 +136,28 @@ async function getSpreadsheetInfo(ctx, spreadsheetId, apiKey) {
       throw new Error("Spreadsheet not found. Please check the spreadsheet ID and ensure it's accessible.");
     }
     if (error.response?.status === 403) {
-      throw new Error("Access denied. Please check your API key has permission to access this spreadsheet.");
+      const errorMessage = error.response?.data?.error?.message || error.message;
+      let helpfulMessage = "Access denied. ";
+      
+      if (errorMessage?.includes("API key not valid")) {
+        helpfulMessage += "Your API key is invalid. Please check that you've copied the correct API key from Google Cloud Console.";
+      } else if (errorMessage?.includes("permission") || errorMessage?.includes("access")) {
+        helpfulMessage += "Your API key doesn't have permission to access this spreadsheet. ";
+        helpfulMessage += "Make sure: 1) The spreadsheet is shared with the email associated with your API key (if using service account), ";
+        helpfulMessage += "2) The API key restrictions allow access to Google Sheets API, ";
+        helpfulMessage += "3) The spreadsheet ID is correct.";
+      } else {
+        helpfulMessage += "Please check your API key has permission to access this spreadsheet. ";
+        helpfulMessage += "Ensure the spreadsheet is shared properly and the API key restrictions allow Google Sheets API access.";
+      }
+      
+      throw new Error(helpfulMessage);
     }
-    throw new Error(`Failed to fetch spreadsheet: ${error.message}`);
+    if (error.response?.status === 400) {
+      const errorMessage = error.response?.data?.error?.message || error.message;
+      throw new Error(`Invalid request: ${errorMessage}. Please check the spreadsheet ID format.`);
+    }
+    throw new Error(`Failed to fetch spreadsheet: ${error.response?.data?.error?.message || error.message}`);
   }
 }
 
@@ -173,7 +192,14 @@ async function getSheetHeaders(ctx, spreadsheetId, sheetName, apiKey) {
 
     return headers;
   } catch (error) {
-    throw new Error(`Failed to fetch headers: ${error.message}`);
+    if (error.response?.status === 404) {
+      throw new Error("Spreadsheet or sheet not found. Please check the spreadsheet ID and sheet name.");
+    }
+    if (error.response?.status === 403) {
+      const errorMessage = error.response?.data?.error?.message || error.message;
+      throw new Error(`Access denied: ${errorMessage}. Please check your API key has permission to access this spreadsheet.`);
+    }
+    throw new Error(`Failed to fetch headers: ${error.response?.data?.error?.message || error.message}`);
   }
 }
 

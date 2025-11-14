@@ -6,43 +6,68 @@ import {
   planTargets,
   enqueueJob,
   getJob,
-  sseUrl,
   downloadOutput,
   downloadZip,
 } from "../services/imageService";
 import PageContainer from "../components/PageContainer";
 import PageHeader from "../components/PageHeader";
-import { showError } from "../utils/toast";
+import { showError, showSuccess } from "../utils/toast";
+import { X, CheckSquare, Square, Download } from "lucide-react";
 
 const ALL_FORMATS = ["jpg", "png", "bmp", "gif", "tiff", "webp"];
 
 export default function ImageConverter() {
-  const [targets, setTargets] = useState([]);
   const [files, setFiles] = useState([]);
+  const [filePreviews, setFilePreviews] = useState({});
+  const [fileFormats, setFileFormats] = useState({});
+  const [selectedFiles, setSelectedFiles] = useState(new Set());
   const [job, setJob] = useState(null);
-  const [events, setEvents] = useState([]);
   const fileInputRef = useRef(null);
 
-  // ADD THIS: Component mount/unmount tracking
+  // Generate previews for uploaded files
   useEffect(() => {
-    console.log('🟢 ImageConverter MOUNTED');
+    const newPreviews = {};
+    const newFormats = {};
+    
+    files.forEach((file, index) => {
+      if (!filePreviews[file.name]) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          setFilePreviews(prev => ({ ...prev, [file.name]: e.target.result }));
+        };
+        reader.readAsDataURL(file);
+      }
+      // Set default format to webp if not set
+      if (!fileFormats[file.name]) {
+        newFormats[file.name] = 'webp';
+      }
+    });
+    
+    if (Object.keys(newFormats).length > 0) {
+      setFileFormats(prev => ({ ...prev, ...newFormats }));
+    }
+  }, [files]);
+
+  // Cleanup previews on unmount
+  useEffect(() => {
     return () => {
-      console.log('🔴 ImageConverter UNMOUNTING');
+      Object.values(filePreviews).forEach(url => {
+        if (url.startsWith('data:')) {
+          // Cleanup data URLs if needed
+        }
+      });
     };
   }, []);
-
-  // ADD THIS: Track files state changes
-  useEffect(() => {
-    console.log('📁 Files state changed:', files.length, 'files');
-  }, [files]);
 
   const totalBytes = useMemo(
     () => files.reduce((s, f) => s + f.size, 0),
     [files]
   );
 
-  const canUpload =
-    files.length >= 1 && files.length <= 100 && totalBytes <= 200 * 1024 * 1024;
+  const canConvert = files.length >= 1 && 
+    files.length <= 100 && 
+    totalBytes <= 200 * 1024 * 1024 &&
+    selectedFiles.size > 0;
 
   // ✅ Prevent browser refresh / navigation when dragging files
   useEffect(() => {
@@ -60,76 +85,135 @@ export default function ImageConverter() {
   }, []);
 
   const onDrop = (e) => {
-    console.log('🎯 onDrop called');
     e.preventDefault();
-    const list = Array.from(e.dataTransfer.files || []);
+    const list = Array.from(e.dataTransfer.files || []).filter(f => f.type.startsWith('image/'));
     if (!list.length) return;
     setFiles((prev) => [...prev, ...list]);
+    // Auto-select new files
+    setSelectedFiles(prev => {
+      const next = new Set(prev);
+      list.forEach(f => next.add(f.name));
+      return next;
+    });
   };
 
   const onSelect = (e) => {
     e.stopPropagation();
-    console.log('🚀 onSelect CALLED!', e);
-    console.log('🚀 Event type:', e.type);
-    console.log('🚀 Target:', e.target);
-    console.log('🚀 Files:', e.target.files);
-    
-    try {
-      const list = Array.from(e.target.files || []);
-      console.log('🚀 Files array:', list);
-      
-      if (!list.length) {
-        console.log('⚠️ No files in list');
-        return;
-      }
-      
-      console.log('✅ Setting files state...');
-      setFiles((prev) => {
-        const newFiles = [...prev, ...list];
-        console.log('✅ New files state:', newFiles);
-        return newFiles;
-      });
-      
-      e.target.value = "";
-      console.log('✅ Input value reset');
-    } catch (error) {
-      console.error('❌ Error in onSelect:', error);
-    }
+    const list = Array.from(e.target.files || []).filter(f => f.type.startsWith('image/'));
+    if (!list.length) return;
+    setFiles((prev) => [...prev, ...list]);
+    // Auto-select new files
+    setSelectedFiles(prev => {
+      const next = new Set(prev);
+      list.forEach(f => next.add(f.name));
+      return next;
+    });
+    e.target.value = "";
   };
 
   const handleChooseFiles = (e) => {
     e.stopPropagation();
-    console.log('🖱️ Choose Files button clicked');
-    console.log('🖱️ File input ref:', fileInputRef.current);
-    
     if (fileInputRef.current) {
-      console.log('🖱️ Triggering file input click...');
       fileInputRef.current.click();
-      console.log('🖱️ Click triggered');
     }
   };
 
-  const toggle = (fmt) =>
-    setTargets((t) =>
-      t.includes(fmt) ? t.filter((x) => x !== fmt) : [...t, fmt]
-    );
+  const removeFile = (fileName) => {
+    setFiles(prev => prev.filter(f => f.name !== fileName));
+    setSelectedFiles(prev => {
+      const next = new Set(prev);
+      next.delete(fileName);
+      return next;
+    });
+    setFilePreviews(prev => {
+      const next = { ...prev };
+      delete next[fileName];
+      return next;
+    });
+    setFileFormats(prev => {
+      const next = { ...prev };
+      delete next[fileName];
+      return next;
+    });
+  };
+
+  const toggleFileSelection = (fileName) => {
+    setSelectedFiles(prev => {
+      const next = new Set(prev);
+      if (next.has(fileName)) {
+        next.delete(fileName);
+      } else {
+        next.add(fileName);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedFiles.size === files.length) {
+      setSelectedFiles(new Set());
+    } else {
+      setSelectedFiles(new Set(files.map(f => f.name)));
+    }
+  };
+
+  const setFileFormat = (fileName, format) => {
+    setFileFormats(prev => ({ ...prev, [fileName]: format }));
+  };
+
+  const applyFormatToSelected = (format) => {
+    const newFormats = { ...fileFormats };
+    selectedFiles.forEach(fileName => {
+      newFormats[fileName] = format;
+    });
+    setFileFormats(newFormats);
+  };
 
   const start = async () => {
-    if (!canUpload) {
+    if (!canConvert) {
       showError(
-        "Please select files and ensure they meet the requirements (1–100 files, ≤ 200MB total)"
+        "Please select at least one image and ensure they meet the requirements (1–100 files, ≤ 200MB total)"
       );
       return;
     }
 
+    // Get selected files with their formats
+    const selectedFilesList = files.filter(f => selectedFiles.has(f.name));
+    const formats = new Set(selectedFilesList.map(f => fileFormats[f.name] || 'webp'));
+    
+    if (selectedFilesList.length === 0) {
+      showError("Please select at least one image to convert");
+      return;
+    }
+
     try {
-      const { data: j } = await createJob(targets.join(","));
+      const { data: j } = await createJob(Array.from(formats).join(","));
       setJob(j);
-      const up = await uploadFiles(j.id, files);
+      const up = await uploadFiles(j.id, selectedFilesList);
       const fileIds = (up.data?.files || []).map((f) => f.id);
-      await planTargets(j.id, targets, fileIds);
+      
+      // Plan targets for each file with its specific format
+      const allTargets = Array.from(formats);
+      await planTargets(j.id, allTargets, fileIds);
       await enqueueJob(j.id);
-      attachSSE(j.id);
+      
+      showSuccess(`Conversion started for ${selectedFilesList.length} image(s)`);
+      
+      // Poll for job completion
+      const checkJob = async () => {
+        try {
+          const { data } = await getJob(j.id);
+          setJob(data);
+          if (data.status === 'DONE' || data.status === 'FAILED') {
+            showSuccess('Conversion completed!');
+          } else {
+            setTimeout(checkJob, 2000);
+          }
+        } catch (err) {
+          console.error('Error checking job:', err);
+        }
+      };
+      setTimeout(checkJob, 2000);
     } catch (err) {
       const msg =
         err?.response?.data?.error ||
@@ -150,24 +234,6 @@ export default function ImageConverter() {
     }
   };
 
-  const attachSSE = (jobId) => {
-    try {
-      const url = sseUrl(jobId, localStorage.getItem("accessToken"));
-      const es = new EventSource(url, { withCredentials: false });
-      es.onmessage = (ev) => {
-        const payload = JSON.parse(ev.data);
-        setEvents((prev) => [...prev, payload]);
-        if (payload.type === "job-done") es.close();
-      };
-      es.onerror = (err) => {
-        console.error("SSE error:", err);
-        es.close();
-      };
-    } catch (err) {
-      console.error("Failed to attach SSE:", err);
-    }
-  };
-
   const refresh = async () => {
     if (job) {
       const { data } = await getJob(job.id);
@@ -175,15 +241,8 @@ export default function ImageConverter() {
     }
   };
 
-  useEffect(() => {
-    const t = setInterval(refresh, 1500);
-    return () => clearInterval(t);
-  }, [job?.id]);
-
   const bytesMB = (totalBytes / 1024 / 1024).toFixed(1);
-
-  // ADD THIS: Log when component renders
-  console.log('🔄 ImageConverter rendering, files:', files.length);
+  const allSelected = files.length > 0 && selectedFiles.size === files.length;
 
   return (
     <PageContainer>
@@ -193,52 +252,6 @@ export default function ImageConverter() {
           f.toUpperCase()
         ).join(", ")}. Up to 100 files, total ≤ 200MB.`}
       />
-
-      {/* Target Formats */}
-      <section className="bg-white/90 backdrop-blur rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-5">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <div className="text-sm font-medium text-slate-700">
-              Target formats
-            </div>
-            <div className="text-xs text-slate-500">
-              Pick one or more formats to generate
-            </div>
-          </div>
-          <div className="text-xs text-slate-500">
-            Selected:{" "}
-            <span className="font-semibold text-slate-700">
-              {targets.length}
-            </span>
-          </div>
-        </div>
-
-        <div className="mt-3 flex flex-wrap gap-2">
-          {ALL_FORMATS.map((f) => {
-            const active = targets.includes(f);
-            return (
-              <label
-                key={f}
-                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm border cursor-pointer transition
-                  ${
-                    active
-                      ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
-                      : "bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100"
-                  }`}
-                title={`Toggle ${f.toUpperCase()}`}
-              >
-                <input
-                  type="checkbox"
-                  checked={active}
-                  onChange={() => toggle(f)}
-                  className="sr-only"
-                />
-                <span className="font-medium">{f.toUpperCase()}</span>
-              </label>
-            );
-          })}
-        </div>
-      </section>
 
       {/* File Uploader */}
       <section
@@ -258,9 +271,6 @@ export default function ImageConverter() {
             onChange={onSelect}
             className="hidden"
             id="image-converter-file-input"
-            onClick={(e) => {console.log('📌 Input clicked', e); e.stopPropagation()}}
-            onFocus={() => console.log('📌 Input focused')}
-            onBlur={() => console.log('📌 Input blurred')}
           />
           <button
             type="button"
@@ -274,32 +284,152 @@ export default function ImageConverter() {
         <div className="mt-3 text-xs text-slate-600">
           {files.length} file(s), {bytesMB} MB total
         </div>
-
-        <div className="mt-4">
-          <button
-            type="button"
-            disabled={!canUpload}
-            onClick={start}
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-semibold shadow-sm transition
-              ${
-                canUpload
-                  ? "bg-indigo-600 hover:bg-indigo-700 active:scale-[.99] cursor-pointer"
-                  : "bg-slate-400 cursor-not-allowed opacity-60"
-              }`}
-          >
-            Start Conversion
-          </button>
-          {!canUpload && files.length > 0 && (
-            <p className="mt-2 text-xs text-slate-500">
-              {files.length > 100
-                ? "Too many files (max 100)"
-                : totalBytes > 200 * 1024 * 1024
-                ? "Total size too large (max 200MB)"
-                : "Please select at least one file"}
-            </p>
-          )}
-        </div>
       </section>
+
+      {/* Image Previews with Format Selection */}
+      {files.length > 0 && (
+        <section className="mt-5 bg-white/90 backdrop-blur rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-5">
+          <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+            <div>
+              <h3 className="text-sm font-medium text-slate-700">Uploaded Images</h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Select images and choose output format for each
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              {selectedFiles.size > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-600">
+                    Apply format to selected:
+                  </span>
+                  <select
+                    onChange={(e) => applyFormatToSelected(e.target.value)}
+                    className="text-xs px-2 py-1 rounded border border-slate-300 bg-white"
+                    defaultValue=""
+                  >
+                    <option value="" disabled>Select format</option>
+                    {ALL_FORMATS.map(f => (
+                      <option key={f} value={f}>{f.toUpperCase()}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={toggleSelectAll}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-medium"
+              >
+                {allSelected ? (
+                  <>
+                    <CheckSquare className="w-3.5 h-3.5" />
+                    Deselect All
+                  </>
+                ) : (
+                  <>
+                    <Square className="w-3.5 h-3.5" />
+                    Select All
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            {files.map((file) => {
+              const isSelected = selectedFiles.has(file.name);
+              const preview = filePreviews[file.name];
+              const format = fileFormats[file.name] || 'webp';
+              
+              return (
+                <div
+                  key={file.name}
+                  className={`relative rounded-lg border-2 transition-all ${
+                    isSelected
+                      ? "border-indigo-500 bg-indigo-50"
+                      : "border-slate-200 bg-white"
+                  }`}
+                >
+                  {/* Checkbox */}
+                  <button
+                    type="button"
+                    onClick={() => toggleFileSelection(file.name)}
+                    className="absolute top-2 left-2 z-10 p-1 rounded bg-white/90 backdrop-blur-sm shadow-sm hover:bg-white"
+                  >
+                    {isSelected ? (
+                      <CheckSquare className="w-4 h-4 text-indigo-600" />
+                    ) : (
+                      <Square className="w-4 h-4 text-slate-400" />
+                    )}
+                  </button>
+
+                  {/* Remove button */}
+                  <button
+                    type="button"
+                    onClick={() => removeFile(file.name)}
+                    className="absolute top-2 right-2 z-10 p-1 rounded bg-white/90 backdrop-blur-sm shadow-sm hover:bg-rose-50 text-slate-600 hover:text-rose-600"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+
+                  {/* Preview */}
+                  <div className="aspect-square overflow-hidden rounded-t-lg bg-slate-100">
+                    {preview ? (
+                      <img
+                        src={preview}
+                        alt={file.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-slate-400 text-xs">
+                        Loading...
+                      </div>
+                    )}
+                  </div>
+
+                  {/* File info and format selector */}
+                  <div className="p-2 space-y-2">
+                    <p className="text-xs text-slate-700 truncate" title={file.name}>
+                      {file.name}
+                    </p>
+                    <select
+                      value={format}
+                      onChange={(e) => setFileFormat(file.name, e.target.value)}
+                      className="w-full text-xs px-2 py-1.5 rounded border border-slate-300 bg-white hover:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    >
+                      {ALL_FORMATS.map(f => (
+                        <option key={f} value={f}>{f.toUpperCase()}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-slate-500">
+                      {(file.size / 1024).toFixed(1)} KB
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Convert button */}
+          <div className="mt-6 flex items-center justify-between gap-3 flex-wrap">
+            <div className="text-xs text-slate-600">
+              {selectedFiles.size} of {files.length} image(s) selected
+            </div>
+            <button
+              type="button"
+              disabled={!canConvert}
+              onClick={start}
+              className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-lg text-white text-sm font-semibold shadow-sm transition
+                ${
+                  canConvert
+                    ? "bg-indigo-600 hover:bg-indigo-700 active:scale-[.99] cursor-pointer"
+                    : "bg-slate-400 cursor-not-allowed opacity-60"
+                }`}
+            >
+              Convert Selected Images
+            </button>
+          </div>
+        </section>
+      )}
 
       {/* Actions */}
       {job && (
@@ -383,21 +513,6 @@ export default function ImageConverter() {
         </section>
       )}
 
-      {/* Events Log */}
-      {events.length > 0 && (
-        <section className="mt-5 bg-white/90 backdrop-blur rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-5">
-          <div className="text-sm font-medium text-slate-700 mb-2">Progress</div>
-          <ul className="text-xs text-slate-600 space-y-1 max-h-48 overflow-auto">
-            {events
-              .slice(-200)
-              .map((e, i) => (
-                <li key={i} className="font-mono">
-                  {JSON.stringify(e)}
-                </li>
-              ))}
-          </ul>
-        </section>
-      )}
     </PageContainer>
   );
 }

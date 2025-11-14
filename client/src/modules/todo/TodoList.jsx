@@ -1,12 +1,12 @@
 import React from 'react';
 import TodoCard from './TodoCard';
 
-const TABS = ['All Tasks', 'Pending', 'In Progress', 'Completed'];
+const TABS = ['All Tasks', 'High', 'Medium', 'Low'];
 
 const TodoList = ({ todos, categories, loading, selectedTodos, onSelectTodo, onSelectAll, onEdit, onDelete, onStatusChange }) => {
   const [activeTab, setActiveTab] = React.useState('All Tasks');
 
-  const filtered = React.useMemo(() => (activeTab === 'All Tasks' ? todos : todos.filter((t) => t.status === activeTab)), [todos, activeTab]);
+  const filtered = React.useMemo(() => (activeTab === 'All Tasks' ? todos : todos.filter((t) => t.priority === activeTab)), [todos, activeTab]);
 
   if (loading) {
     return (
@@ -49,7 +49,7 @@ const TodoList = ({ todos, categories, loading, selectedTodos, onSelectTodo, onS
           <p className="text-sm text-slate-400 mt-1">Create your first task to get started</p>
         </div>
       ) : (
-        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
           {filtered.map((todo) => (
             <TodoCard
               key={todo.id}
