@@ -93,18 +93,10 @@ const TodoSidebar = ({
       </div>
 
       {/* Scrollable categories fill remaining height */}
-      <div className="mt-4 flex-1 overflow-y-auto overscroll-contain pr-1">
+      <div className="mt-4 flex-1 overflow-y-auto overscroll-contain pr-1 scroll-smooth">
         {/* Sticky subheader */}
         <div className="sticky top-0 z-10 bg-white/70 backdrop-blur pt-1 pb-2">
-          <div className="flex items-center justify-between">
-            <div className="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">Categories</div>
-            <button
-              onClick={onCreateCategory}
-              className="text-xs text-indigo-600 hover:text-indigo-500"
-            >
-              New
-            </button>
-          </div>
+          <div className="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">Categories</div>
         </div>
 
         <div className="space-y-1.5 pb-4">

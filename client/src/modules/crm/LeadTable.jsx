@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef, useId } from "react";
 import { crmApi } from "../../services/crmService";
 import { listOwnersMinimal } from "../../services/userService";
-import { ChevronDown, ChevronUp, Filter, MoreHorizontal, Plus, Search, Upload, User2, Download, X, Settings2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Filter, MoreHorizontal, Plus, Search, Upload, User2, Download, X, Settings2, Trash2 } from "lucide-react";
 import { usePermission } from "../auth/usePermission";
 import clsx from "clsx";
-import { showError } from '../../utils/toast';
+import { showError, showSuccess } from '../../utils/toast';
 
 // Base columns that can't be removed
 const baseColumns = [
@@ -41,6 +41,7 @@ export default function LeadTable({ onOpenDrawer, onOpenImport }) {
   const [showColumnManager, setShowColumnManager] = useState(false);
   const [newColumnName, setNewColumnName] = useState("");
   const [newColumnKey, setNewColumnKey] = useState("");
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   // Use refs to prevent infinite loops
   const fetchingRef = useRef(false);
@@ -166,9 +167,23 @@ export default function LeadTable({ onOpenDrawer, onOpenImport }) {
 
   const onBulkDelete = async () => {
     if (!selected.size) return;
-    await crmApi.deleteLeads(Array.from(selected));
-    setSelected(new Set());
-    fetchData().catch(console.error);
+    setConfirmDeleteOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!selected.size) return;
+    try {
+      await crmApi.deleteLeads(Array.from(selected));
+      const count = selected.size;
+      setSelected(new Set());
+      setConfirmDeleteOpen(false);
+      showSuccess(`${count} lead${count > 1 ? 's' : ''} deleted successfully`);
+      fetchData().catch(console.error);
+    } catch (error) {
+      console.error('Failed to delete leads:', error);
+      showError('Failed to delete leads. Please try again.');
+      setConfirmDeleteOpen(false);
+    }
   };
 
   const onBulkAssign = async (ownerId) => {
@@ -451,6 +466,14 @@ export default function LeadTable({ onOpenDrawer, onOpenImport }) {
           onClose={() => setShowColumnManager(false)}
         />
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteConfirmDialog
+        open={confirmDeleteOpen}
+        count={selected.size}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setConfirmDeleteOpen(false)}
+      />
     </div>
   );
 }
@@ -748,6 +771,85 @@ function Pagination({ page, setPage, pageSize, total }) {
       <button onClick={() => setPage(pages)} disabled={page === pages} className="px-2 py-1 rounded-lg bg-white border border-slate-200 disabled:opacity-50 text-sm">
         »
       </button>
+    </div>
+  );
+}
+
+// Delete Confirmation Dialog
+function DeleteConfirmDialog({ open, count, onConfirm, onCancel }) {
+  const dialogId = useId();
+  const panelRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const focusable = panelRef.current?.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])');
+    const first = focusable?.[0];
+    const last = focusable?.[focusable.length - 1];
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') onCancel();
+      if (e.key === 'Tab' && focusable?.length) {
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last?.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first?.focus();
+        }
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    first?.focus();
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [open, onCancel]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={`${dialogId}-title`}
+      aria-describedby={`${dialogId}-desc`}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+    >
+      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onCancel} />
+      <div ref={panelRef} className="relative z-10 w-full max-w-sm rounded-2xl bg-white shadow-xl border border-slate-200 p-5">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 w-10 h-10 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center">
+            <Trash2 className="w-5 h-5" aria-hidden="true" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h2 id={`${dialogId}-title`} className="text-sm font-bold text-rose-600">Delete Lead{count > 1 ? 's' : ''}?</h2>
+            <p id={`${dialogId}-desc`} className="mt-1 text-sm text-slate-600">
+              Are you sure you want to delete {count} selected lead{count > 1 ? 's' : ''}? This action cannot be undone.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="p-1 rounded-md text-slate-500 hover:text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            aria-label="Close dialog"
+          >
+            <X className="w-5 h-5" aria-hidden="true" />
+          </button>
+        </div>
+        <div className="mt-4 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-3 py-1.5 rounded-lg text-sm border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="px-3 py-1.5 rounded-lg text-sm bg-rose-600 text-white hover:bg-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-300"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
